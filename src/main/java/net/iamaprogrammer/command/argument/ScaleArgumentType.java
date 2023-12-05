@@ -2,14 +2,9 @@ package net.iamaprogrammer.command.argument;
 
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.arguments.ArgumentType;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.exceptions.Dynamic2CommandExceptionType;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.command.argument.ArgumentTypes;
-import net.minecraft.text.CharacterVisitor;
 import net.minecraft.text.Text;
 
 public class ScaleArgumentType implements ArgumentType<Double> {
@@ -77,7 +72,7 @@ public class ScaleArgumentType implements ArgumentType<Double> {
                         throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.integerTooHigh().createWithContext(reader, scale, maximum);
                     }
 
-                    return (double)(firstNum/secondNum);
+                    return firstNum/secondNum;
                 } catch (NumberFormatException e){
                     throw INVALID_SCALE_FORMAT.createWithContext(reader, text);
                 }

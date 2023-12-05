@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.loader.api.FabricLoader;
+import net.iamaprogrammer.command.argument.PathArgumentType;
 import net.iamaprogrammer.command.argument.ScaleArgumentType;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.registry.Registries;
@@ -32,8 +33,8 @@ public class ImageCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
         dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(2))
                 .then(CommandManager.literal("paste")
-                        .then(CommandManager.argument("imagePath", StringArgumentType.word()).executes(ImageCommand::run))
-                        .then(CommandManager.argument("imagePath", StringArgumentType.word())
+                        .then(CommandManager.argument("imagePath", PathArgumentType.path()).executes(ImageCommand::run))
+                        .then(CommandManager.argument("imagePath", PathArgumentType.path())
                                 .then(CommandManager.argument("scalex", ScaleArgumentType.scale())
                                         .then(CommandManager.argument("scaley", ScaleArgumentType.scale()).executes(ImageCommand::run))
                                 )
@@ -51,8 +52,6 @@ public class ImageCommand {
             scaleY = context.getArgument("scaley", double.class);
         } catch (IllegalArgumentException ignored) {}
 
-        System.out.println("Scale X: " + scaleX);
-        System.out.println("Scale Y: " + scaleY);
         Path runFolder = FabricLoader.getInstance().getGameDir();
         Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imageName);
         if (Files.exists(fullPath)) {
