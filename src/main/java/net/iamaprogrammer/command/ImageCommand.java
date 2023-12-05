@@ -16,7 +16,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.Vec3i;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -72,14 +74,20 @@ public class ImageCommand {
 
             if (colorData != null && player != null) {
                 ServerWorld world = player.getServerWorld();
-                Vec3d pos = player.getPos();
+                Vec3d playerPos = player.getPos();
 
 
                 Color previousPixelColor = null;
                 Identifier previousBlock = null;
                 Map<Color, Identifier> usedColors = new HashMap<>();
-                for (int y = 0; y < (image.getHeight() * scaleY)-1; y++) {
-                    for (int x = 0; x < (image.getWidth() * scaleX)-1; x++) {
+
+
+                int blockSizeX = (int) (image.getWidth() * scaleX);
+                int blockSizeY = (int) (image.getHeight() * scaleY);
+
+                Vec3i centerPos = new Vec3i((int) (playerPos.getX() - ((blockSizeX/2))), (int) playerPos.getY(), (int) (playerPos.getZ() - ((blockSizeY/2))));
+                for (int y = 0; y < blockSizeY-1; y++) {
+                    for (int x = 0; x < blockSizeX-1; x++) {
                         int coordinateOffsetX = (int) (x%scaleX);
                         int coordinateOffsetY = (int) (y%scaleY);
 
@@ -88,12 +96,13 @@ public class ImageCommand {
 
                         Color pixelColor = new Color(image.getRGB(pixelCoordinateX, pixelCoordinateY));
 
+
                         if (pixelColor.equals(previousPixelColor)) {
-                            addBlockToWorld(previousBlock, world, pos, x, y);
+                            addBlockToWorld(previousBlock, world, centerPos, x, y);
                         } else if (usedColors.containsKey(pixelColor)) {
-                            addBlockToWorld(usedColors.get(pixelColor), world, pos, x, y);
+                            addBlockToWorld(usedColors.get(pixelColor), world, centerPos, x, y);
                         } else {
-                            previousBlock = addBlockToWorld(pixelColor, colorData, world, pos, x, y, new ArrayList<>());
+                            previousBlock = addBlockToWorld(pixelColor, colorData, world, centerPos, x, y, new ArrayList<>());
                             previousPixelColor = pixelColor;
                             usedColors.put(previousPixelColor, previousBlock);
                         }
@@ -125,7 +134,7 @@ public class ImageCommand {
         return null;
     }
 
-    private static Identifier addBlockToWorld(Color imagePixelColor, Map<Identifier, Color> colorData, ServerWorld world, Vec3d pos, int x, int y, ArrayList<Identifier> blacklist) {
+    private static Identifier addBlockToWorld(Color imagePixelColor, Map<Identifier, Color> colorData, ServerWorld world, Vec3i pos, int x, int y, ArrayList<Identifier> blacklist) {
         Identifier bestMatch = getBestPixelToBlockMatch(imagePixelColor, colorData, blacklist);
         BlockPos blockPos = addBlockToWorld(bestMatch, world, pos, x, y);
 
@@ -136,7 +145,7 @@ public class ImageCommand {
         return bestMatch;
     }
 
-    private static BlockPos addBlockToWorld(Identifier blockId, ServerWorld world, Vec3d pos, int x, int y) {
+    private static BlockPos addBlockToWorld(Identifier blockId, ServerWorld world, Vec3i pos, int x, int y) {
         BlockPos blockPos = new BlockPos((int) (pos.getX()+x), (int) pos.getY(), (int) (pos.getZ()+y));
         world.setBlockState(blockPos, Registries.BLOCK.get(blockId).getDefaultState());
         return blockPos;
