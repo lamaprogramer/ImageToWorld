@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.fabricmc.loader.api.FabricLoader;
+import net.iamaprogrammer.command.argument.ScaleArgumentType;
 import net.minecraft.command.CommandRegistryAccess;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
@@ -15,7 +16,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -27,24 +27,37 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class ImageCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
         dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(2))
                 .then(CommandManager.literal("paste")
                         .then(CommandManager.argument("imagePath", StringArgumentType.word()).executes(ImageCommand::run))
-        ));
+                        .then(CommandManager.argument("imagePath", StringArgumentType.word())
+                                .then(CommandManager.argument("scalex", ScaleArgumentType.scale())
+                                        .then(CommandManager.argument("scaley", ScaleArgumentType.scale()).executes(ImageCommand::run))
+                                )
+                        )
+                )
+        );
     }
 
     private static int run(CommandContext<ServerCommandSource> context) throws CommandSyntaxException {
         String imageName = context.getArgument("imagePath", String.class);
-        Path runFolder = FabricLoader.getInstance().getGameDir();
+        double scaleX = 1;
+        double scaleY = 1;
+        try {
+            scaleX = context.getArgument("scalex", double.class);
+            scaleY = context.getArgument("scaley", double.class);
+        } catch (IllegalArgumentException ignored) {}
 
+        System.out.println("Scale X: " + scaleX);
+        System.out.println("Scale Y: " + scaleY);
+        Path runFolder = FabricLoader.getInstance().getGameDir();
         Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imageName);
         if (Files.exists(fullPath)) {
             context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
-            loadImage(context, fullPath);
+            loadImage(context, fullPath, scaleX, scaleY);
             return 1;
         } else {
             context.getSource().sendFeedback(() -> Text.of("Image Does not Exist"), true);
@@ -52,7 +65,7 @@ public class ImageCommand {
         }
     }
 
-    private static void loadImage(CommandContext<ServerCommandSource> context, Path path) {
+    private static void loadImage(CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleY) {
         try {
             BufferedImage image = ImageIO.read(new File(path.toUri()));
             Map<Identifier, Color> colorData = loadAverageColorData();
@@ -62,10 +75,30 @@ public class ImageCommand {
                 ServerWorld world = player.getServerWorld();
                 Vec3d pos = player.getPos();
 
-                for (int y = 0; y < image.getHeight()-1; y++) {
-                    for (int x = 0; x < image.getWidth()-1; x++) {
-                        Color pixelColor = new Color(image.getRGB(x, y));
-                        addBlockToWorld(pixelColor, colorData, world, pos, x, y, new ArrayList<>());
+
+                Color previousPixelColor = null;
+                Identifier previousBlock = null;
+                Map<Color, Identifier> usedColors = new HashMap<>();
+                for (int y = 0; y < (image.getHeight() * scaleY)-1; y++) {
+                    for (int x = 0; x < (image.getWidth() * scaleX)-1; x++) {
+                        int coordinateOffsetX = (int) (x%scaleX);
+                        int coordinateOffsetY = (int) (y%scaleY);
+
+                        int pixelCoordinateX = (int) ((x-coordinateOffsetX)/scaleX);
+                        int pixelCoordinateY = (int) ((y-coordinateOffsetY)/scaleY);
+
+                        Color pixelColor = new Color(image.getRGB(pixelCoordinateX, pixelCoordinateY));
+
+                        if (pixelColor.equals(previousPixelColor)) {
+                            addBlockToWorld(previousBlock, world, pos, x, y);
+                        } else if (usedColors.containsKey(pixelColor)) {
+                            addBlockToWorld(usedColors.get(pixelColor), world, pos, x, y);
+                        } else {
+                            previousBlock = addBlockToWorld(pixelColor, colorData, world, pos, x, y, new ArrayList<>());
+                            previousPixelColor = pixelColor;
+                            usedColors.put(previousPixelColor, previousBlock);
+                        }
+
                     }
                 }
             }
@@ -93,16 +126,24 @@ public class ImageCommand {
         return null;
     }
 
-    private static void addBlockToWorld(Color imagePixelColor, Map<Identifier, Color> colorData, ServerWorld world, Vec3d pos, int x, int y, ArrayList<Identifier> blacklist) {
+    private static Identifier addBlockToWorld(Color imagePixelColor, Map<Identifier, Color> colorData, ServerWorld world, Vec3d pos, int x, int y, ArrayList<Identifier> blacklist) {
         Identifier bestMatch = getBestPixelToBlockMatch(imagePixelColor, colorData, blacklist);
-        BlockPos blockPos = new BlockPos((int) (pos.getX()+x), (int) pos.getY(), (int) (pos.getZ()+y));
-        world.setBlockState(blockPos, Registries.BLOCK.get(bestMatch).getDefaultState());
+        BlockPos blockPos = addBlockToWorld(bestMatch, world, pos, x, y);
 
         if (!world.getBlockState(blockPos).isFullCube(world, blockPos)) {
             blacklist.add(bestMatch);
-            addBlockToWorld(imagePixelColor, colorData, world, pos, x, y, blacklist);
+            return addBlockToWorld(imagePixelColor, colorData, world, pos, x, y, blacklist);
         }
+        return bestMatch;
     }
+
+    private static BlockPos addBlockToWorld(Identifier blockId, ServerWorld world, Vec3d pos, int x, int y) {
+        BlockPos blockPos = new BlockPos((int) (pos.getX()+x), (int) pos.getY(), (int) (pos.getZ()+y));
+        world.setBlockState(blockPos, Registries.BLOCK.get(blockId).getDefaultState());
+        return blockPos;
+    }
+
+
 
     private static Identifier getBestPixelToBlockMatch(Color imagePixelColor, Map<Identifier, Color> colorData, ArrayList<Identifier> blacklist) {
         int previousSumDifference = 255+255+255;

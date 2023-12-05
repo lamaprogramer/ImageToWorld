@@ -1,0 +1,4 @@
+{
+  "argument.scale.invalid": "Invalid scale format: %s",
+  "argument.scale.invalid.zero": "Scale cannot be zero: %s"
+}
