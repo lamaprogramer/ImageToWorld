@@ -5,6 +5,8 @@ import com.google.gson.JsonObject;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.MapColor;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.registry.Registries;
 import net.minecraft.resource.Resource;
@@ -35,16 +37,14 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
         //System.out.println(blockIds);
 
         Path configFolder = FabricLoader.getInstance().getConfigDir();
-        Path path = Path.of(configFolder.toString(), "imagetoworld" + File.separator + "texturedata.txt");
+        Path textureDataPath = Path.of(configFolder.toString(), "imagetoworld" + File.separator + "texturedata.txt");
 
         for (Identifier blockId : blockIds) {
             resources.forEach((modelId, resource) -> {
                 try {
                     String modelName = Path.of(modelId.getPath()).getFileName().toString();
                     modelName = modelName.substring(0, modelName.indexOf("."));
-//                    if (blockId.getNamespace().equals("promenade")) {
-//                        System.out.println(modelId);
-//                    }
+
                     if (modelId.getPath().contains(blockId.getPath()) && modelId.getNamespace().equals(blockId.getNamespace())) {
                         if (filterBlockModels(blockIds, blockId, modelId, modelName)) {
                             if (!output.containsKey(blockId)) {
@@ -57,7 +57,9 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
                                         BufferedImage image = ImageIO.read(imageResource.get().getInputStream());
                                         Color average = this.calculateImageAverage(image);
                                         if (average != null) {
-                                            fileData.append(blockId + "#" + average.getRed() + " " + average.getGreen() + " " + average.getBlue() + "\n");
+                                            boolean isMapColorClear = Registries.BLOCK.get(blockId).getDefaultMapColor() == MapColor.CLEAR;
+                                            String data = this.averageImageColor(blockId, average) + (!isMapColorClear ? this.mapColors(blockId) : "") + "\n";
+                                            fileData.append(data);
                                             //System.out.println(blockId + ": " + average);
                                         }
                                     }
@@ -71,7 +73,35 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
             });
         }
 
-        this.writeToFile(path, fileData);
+        this.writeToFile(textureDataPath, fileData);
+    }
+
+    private String averageImageColor(Identifier blockId, Color averageColor) {
+        return blockId + "#" + averageColor.getRed() + " " + averageColor.getGreen() + " " + averageColor.getBlue() + "#";
+    }
+    private String mapColors(Identifier blockId) {
+        int[] mapColor = this.rgbFrom8bit(Registries.BLOCK.get(blockId).getDefaultMapColor().color);
+        int red = mapColor[0];
+        int green = mapColor[1];
+        int blue = mapColor[2];
+
+        Color dark = new Color(mapColorBrightness(red, 180), mapColorBrightness(green, 180), mapColorBrightness(blue, 180));
+        Color normal = new Color(mapColorBrightness(red, 220), mapColorBrightness(green, 220), mapColorBrightness(blue, 220));
+        Color light = new Color(red, green, blue);
+        return dark.getRed() + " " + dark.getGreen() + " " + dark.getBlue() + "," +
+                normal.getRed() + " " + normal.getGreen() + " " + normal.getBlue() + "," +
+                light.getRed() + " " + light.getGreen() + " " + light.getBlue();
+    }
+
+    private int mapColorBrightness(int color, int multiplier) {
+        return (int) Math.floor((double) (color * multiplier) / 255);
+    }
+
+    private int[] rgbFrom8bit(int color) {
+        int red =   (color & 0x00ff0000) >> 16;
+        int green = (color & 0x0000ff00) >> 8;
+        int blue =   color & 0x000000ff;
+        return new int[]{red, green, blue};
     }
 
 

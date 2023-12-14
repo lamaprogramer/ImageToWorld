@@ -30,6 +30,10 @@ public class PathArgumentType implements ArgumentType<String> {
         return new PathArgumentType();
     }
 
+    public static String getPath(final CommandContext<?> context, final String name) {
+        return context.getArgument(name, String.class);
+    }
+
     private static boolean isAllowedInPath(final char c) {
         return c >= '0' && c <= '9'
                 || c >= 'A' && c <= 'Z'
