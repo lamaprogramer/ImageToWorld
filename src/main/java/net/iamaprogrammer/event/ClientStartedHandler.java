@@ -26,41 +26,55 @@ import java.util.List;
 public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted {
     @Override
     public void onClientStarted(MinecraftClient client) {
-        this.generateAverageColorData(client);
+        this.generateColorData(client);
     }
 
-    private void generateAverageColorData(MinecraftClient client) {
+    private void generateColorData(MinecraftClient client) {
         Map<Identifier, Resource> resources = client.getResourceManager().findResources("models/block", path -> true);
         List<Identifier> blockIds = Registries.BLOCK.getIds().stream().toList();
-        Map<Identifier, Block> output = new HashMap<>();
+        Path configFolder = FabricLoader.getInstance().getConfigDir();
+
+
+        List<Identifier> blockIdBlacklist = new ArrayList<>();
+        List<MapColor> mapColorBlacklist = new ArrayList<>();
+
         StringBuilder fileData = new StringBuilder();
+        StringBuilder mapData = new StringBuilder();
         //System.out.println(blockIds);
 
-        Path configFolder = FabricLoader.getInstance().getConfigDir();
         Path textureDataPath = Path.of(configFolder.toString(), "imagetoworld" + File.separator + "texturedata.txt");
+        Path mapDataPath = Path.of(configFolder.toString(), "imagetoworld" + File.separator + "mapdata.txt");
 
         for (Identifier blockId : blockIds) {
-            resources.forEach((modelId, resource) -> {
+            for (Identifier modelId : resources.keySet()) {
+                Resource resource = resources.get(modelId);
                 try {
                     String modelName = Path.of(modelId.getPath()).getFileName().toString();
                     modelName = modelName.substring(0, modelName.indexOf("."));
-
                     if (modelId.getPath().contains(blockId.getPath()) && modelId.getNamespace().equals(blockId.getNamespace())) {
-                        if (filterBlockModels(blockIds, blockId, modelId, modelName)) {
-                            if (!output.containsKey(blockId)) {
-                                output.put(blockId, Registries.BLOCK.get(blockId));
+                        if (this.filterBlockModels(blockIds, blockId, modelId, modelName)) {
+                            if (!blockIdBlacklist.contains(blockId)) {
+                                blockIdBlacklist.add(blockId);
                                 Map<Identifier, Identifier> textureIds = this.getTextureIds(resource, blockId);
+                                if (textureIds != null) {
+                                    if (blockId.getNamespace().equals("minecraft")) {
+                                        MapColor color = Registries.BLOCK.get(blockId).getDefaultMapColor();
+                                        if (!mapColorBlacklist.contains(color) && color != MapColor.CLEAR) {
+                                            mapColorBlacklist.add(color);
 
-                                if (textureIds.get(blockId) != null) {
-                                    Optional<Resource> imageResource = client.getResourceManager().getResource(textureIds.get(blockId));
-                                    if (imageResource.isPresent()) {
-                                        BufferedImage image = ImageIO.read(imageResource.get().getInputStream());
-                                        Color average = this.calculateImageAverage(image);
-                                        if (average != null) {
-                                            boolean isMapColorClear = Registries.BLOCK.get(blockId).getDefaultMapColor() == MapColor.CLEAR;
-                                            String data = this.averageImageColor(blockId, average) + (!isMapColorClear ? this.mapColors(blockId) : "") + "\n";
-                                            fileData.append(data);
-                                            //System.out.println(blockId + ": " + average);
+                                            String colorData = this.mapColors(blockId, color) + "\n";
+                                            mapData.append(colorData);
+                                        }
+                                    }
+                                    if (textureIds.get(blockId) != null) {
+                                        Optional<Resource> imageResource = client.getResourceManager().getResource(textureIds.get(blockId));
+                                        if (imageResource.isPresent()) {
+                                            BufferedImage image = ImageIO.read(imageResource.get().getInputStream());
+                                            Color average = this.calculateImageAverage(image);
+                                            if (average != null) {
+                                                String data = this.averageImageColor(blockId, average) + "\n";
+                                                fileData.append(data);
+                                            }
                                         }
                                     }
                                 }
@@ -70,27 +84,19 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-            });
+            }
         }
 
+        this.writeToFile(mapDataPath, mapData);
         this.writeToFile(textureDataPath, fileData);
     }
 
     private String averageImageColor(Identifier blockId, Color averageColor) {
-        return blockId + "#" + averageColor.getRed() + " " + averageColor.getGreen() + " " + averageColor.getBlue() + "#";
+        return blockId + "#" + averageColor.getRed() + " " + averageColor.getGreen() + " " + averageColor.getBlue();
     }
-    private String mapColors(Identifier blockId) {
-        int[] mapColor = this.rgbFrom8bit(Registries.BLOCK.get(blockId).getDefaultMapColor().color);
-        int red = mapColor[0];
-        int green = mapColor[1];
-        int blue = mapColor[2];
-
-        Color dark = new Color(mapColorBrightness(red, 180), mapColorBrightness(green, 180), mapColorBrightness(blue, 180));
-        Color normal = new Color(mapColorBrightness(red, 220), mapColorBrightness(green, 220), mapColorBrightness(blue, 220));
-        Color light = new Color(red, green, blue);
-        return dark.getRed() + " " + dark.getGreen() + " " + dark.getBlue() + "," +
-                normal.getRed() + " " + normal.getGreen() + " " + normal.getBlue() + "," +
-                light.getRed() + " " + light.getGreen() + " " + light.getBlue();
+    private String mapColors(Identifier blockId, MapColor color) {
+        int colorId = color.id;
+        return blockId + "#" + colorId;
     }
 
     private int mapColorBrightness(int color, int multiplier) {
@@ -130,25 +136,46 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
         return combinations == 1 || largestCombination.equals(blockId.getPath());
     }
 
-
     private Map<Identifier, Identifier> getTextureIds(Resource resource, Identifier blockId) throws IOException {
         Gson gson = new Gson();
         JsonObject data = gson.fromJson(resource.getReader(), JsonObject.class);
-        JsonObject textures = data.get("textures").getAsJsonObject();
-        Set<String> textureKeys = textures.keySet();
+        if (data.has("parent")) {
+            String modelType = this.idToName(data.get("parent").getAsString());
+            if (this.isValidModelType(modelType)) {
+                JsonObject textures = data.get("textures").getAsJsonObject();
+                Set<String> textureKeys = textures.keySet();
 
-        // change to map for block specification
-        Map<Identifier, Identifier> textureIds = new HashMap<>();
-        for (String textureKey : textureKeys) {
-            String id = textures.get(textureKey).getAsString()
-                    .replace("block/", "textures/block/")
-                    .replace("item/", "textures/item/") + ".png";
+                // change to map for block specification
+                Map<Identifier, Identifier> textureIds = new HashMap<>();
+                for (String textureKey : textureKeys) {
+                    String id = textures.get(textureKey).getAsString()
+                            .replace("block/", "textures/block/")
+                            .replace("item/", "textures/item/") + ".png";
 
-            if (!id.contains("#")) {
-                textureIds.put(blockId, new Identifier(id));
+                    if (!id.contains("#")) {
+                        textureIds.put(blockId, new Identifier(id));
+                    }
+                }
+                return textureIds;
             }
+
         }
-        return textureIds;
+        return null;
+    }
+
+    private boolean isValidModelType(String model) {
+        return model.contains("cube") ||
+                model.contains("orientable") ||
+                model.equals("leaves");
+    }
+    private String idToPath(String id) {
+        return id.contains(":") ? id.split(":")[1] : id;
+    }
+    private String pathToName(String path) {
+        return path.contains("/") ? path.substring(path.lastIndexOf("/"), path.length()-1) : path;
+    }
+    private String idToName(String id) {
+        return this.pathToName(this.idToPath(id));
     }
 
     private void writeToFile(Path path, StringBuilder fileData) {
@@ -159,8 +186,6 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
             } catch (IOException ignored) {}
         }
     }
-
-
     private Color calculateImageAverage(BufferedImage image) {
         int resolutionX = 1;
         int resolutionY = 1;
