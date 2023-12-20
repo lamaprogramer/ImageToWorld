@@ -26,24 +26,20 @@ public class ColorDataUtil {
 
                 for (String line : lines) {
                     String[] splitLine = line.split("#");
-                    Identifier blockId = new Identifier(splitLine[0]);
 
+                    Identifier blockId = new Identifier(splitLine[0]);
                     int colorId = Integer.parseInt(splitLine[1]);
 
                     List<Color> colors = new ArrayList<>();
-                    for (int brightness = 0; brightness < 3; brightness++) {
-                        int color = MapColor.get(colorId).color;
-                        //int color = MapColor.get(colorId).getRenderColor(MapColor.Brightness.validateAndGet(b));
-                        int[] rgb = rgbFrom8bit(color);
-                        colors.add(new Color(
-                                mapColorBrightness(rgb[0], MapColor.Brightness.validateAndGet(brightness).brightness),
-                                mapColorBrightness(rgb[1], MapColor.Brightness.validateAndGet(brightness).brightness),
-                                mapColorBrightness(rgb[2], MapColor.Brightness.validateAndGet(brightness).brightness)
-                        ));
+                    if (useAllMapColors) {
+                        for (int brightness = 0; brightness < 3; brightness++) {
+                            colors.add(colorFromMapColor(MapColor.get(colorId), brightness));
+                        }
+                    } else {
+                        colors.add(colorFromMapColor(MapColor.get(colorId), 1));
                     }
                     data.put(blockId, colors);
                 }
-
                 return data;
             }
         } else {
@@ -66,7 +62,7 @@ public class ColorDataUtil {
         return null;
     }
 
-    public static Map<Identifier, MapColor> loadColorDataAsMapColor(boolean useAllMapColors) throws IOException {
+    public static Map<Identifier, MapColor> loadColorDataAsMapColor() throws IOException {
         Path path = Path.of(FabricLoader.getInstance().getConfigDir().toString(), "imagetoworld" + File.separator + "mapdata.txt");
 
         Map<Identifier, MapColor> data = new HashMap<>();
@@ -89,6 +85,15 @@ public class ColorDataUtil {
         return (int) Math.floor((double) (color * multiplier) / 255);
     }
 
+    private static Color colorFromMapColor(MapColor mapColor, int brightness) {
+        int[] rgb = rgbFrom8bit(mapColor.color);
+        return new Color(
+                mapColorBrightness(rgb[0], MapColor.Brightness.validateAndGet(brightness).brightness),
+                mapColorBrightness(rgb[1], MapColor.Brightness.validateAndGet(brightness).brightness),
+                mapColorBrightness(rgb[2], MapColor.Brightness.validateAndGet(brightness).brightness)
+        );
+    }
+
     private static int[] rgbFrom8bit(int color) {
         int red =   (color & 0x00ff0000) >> 16;
         int green = (color & 0x0000ff00) >> 8;
@@ -96,85 +101,70 @@ public class ColorDataUtil {
         return new int[]{red, green, blue};
     }
 
-    public static Identifier getBestPixelToBlockMatch(Color imagePixelColor, Map<Identifier, List<Color>> colorData, ArrayList<Identifier> blacklist) {
+    public static Identifier getBestPixelToBlockMatch(Color imagePixelColor, Map<Identifier, List<Color>> colorData) {
         int previousSumDifference = 255+255+255;
         Identifier bestMatch = null;
 
         for (Identifier key : colorData.keySet()) {
-            if (!blacklist.contains(key)) {
-                List<Color> colors = colorData.get(key);
+            List<Color> colors = colorData.get(key);
+            Color color = colors.get(0);
 
-                Color color = colors.get(0);
-                int sumDifference = getColorDifference(color, imagePixelColor);
-
-                if (sumDifference < previousSumDifference) {
-                    previousSumDifference = sumDifference;
-                    bestMatch = key;
-                }
+            int sumDifference = getColorDifference(color, imagePixelColor);
+            if (sumDifference < previousSumDifference) {
+                previousSumDifference = sumDifference;
+                bestMatch = key;
             }
         }
         return bestMatch;
     }
 
-    public static Pair<MapColor, MapColor.Brightness> getBestPixelToMapColorMatch(Color imagePixelColor, Map<Identifier, MapColor> colorData, ArrayList<Identifier> blacklist) {
+    public static Pair<MapColor, MapColor.Brightness> getBestPixelToMapColorMatch(Color imagePixelColor, Map<Identifier, MapColor> colorData) {
         int previousSumDifference = 255+255+255;
         MapColor bestColor = null;
         MapColor.Brightness bestBrightness = null;
 
         for (Identifier key : colorData.keySet()) {
-            if (!blacklist.contains(key)) {
-                MapColor mapColor = colorData.get(key);
-                int color8Bit = mapColor.color;
-                int[] rgb = rgbFrom8bit(color8Bit);
+            MapColor mapColor = colorData.get(key);
+            for (int brightness = 0; brightness < 3; brightness++) {
+                Color color = colorFromMapColor(mapColor, brightness);
+                int sumDifference = getColorDifference(color, imagePixelColor);
 
-                for (int brightness = 0; brightness < 3; brightness++) {
-                    Color color = new Color(
-                            mapColorBrightness(rgb[0], MapColor.Brightness.validateAndGet(brightness).brightness),
-                            mapColorBrightness(rgb[1], MapColor.Brightness.validateAndGet(brightness).brightness),
-                            mapColorBrightness(rgb[2], MapColor.Brightness.validateAndGet(brightness).brightness)
-                    );
-                    int sumDifference = getColorDifference(color, imagePixelColor);
-
-                    if (sumDifference < previousSumDifference) {
-                        previousSumDifference = sumDifference;
-                        bestColor = mapColor;
-                        bestBrightness = MapColor.Brightness.validateAndGet(brightness);
-                    }
+                if (sumDifference < previousSumDifference) {
+                    previousSumDifference = sumDifference;
+                    bestColor = mapColor;
+                    bestBrightness = MapColor.Brightness.validateAndGet(brightness);
                 }
             }
         }
         return new Pair<>(bestColor, bestBrightness);
     }
 
-    public static Pair<Identifier, Integer> getBestPixelToMapColorMatch(Color imagePixelColor, Map<Identifier, List<Color>> colorData, ArrayList<Identifier> blacklist, boolean useAllColors) {
+    public static Pair<Identifier, Integer> getBestPixelToMapColorMatch(Color imagePixelColor, Map<Identifier, List<Color>> colorData, boolean useAllColors) {
         int previousSumDifference = 255 + 255 + 255;
         Identifier bestMatch = null;
         int mapColorId = -1;
 
         for (Identifier key : colorData.keySet()) {
-            if (!blacklist.contains(key)) {
-                List<Color> colors = colorData.get(key);
-
-                if (useAllColors) {
-                    for (int colorIndex = 0; colorIndex < colors.size(); colorIndex++) {
-                        Color color = colors.get(colorIndex);
-                        int sumDifference = getColorDifference(color, imagePixelColor);
-
-                        if (sumDifference < previousSumDifference) {
-                            previousSumDifference = sumDifference;
-                            bestMatch = key;
-                            mapColorId = colorIndex;
-                        }
-                    }
-                } else {
-                    Color color = colors.get(0);
+            List<Color> colors = colorData.get(key);
+            if (useAllColors) {
+                for (int colorIndex = 0; colorIndex < colors.size(); colorIndex++) {
+                    Color color = colors.get(colorIndex);
                     int sumDifference = getColorDifference(color, imagePixelColor);
 
                     if (sumDifference < previousSumDifference) {
                         previousSumDifference = sumDifference;
                         bestMatch = key;
-                        mapColorId = 1;
+                        mapColorId = colorIndex;
                     }
+                }
+            } else {
+                Color color = colors.get(0);
+                int sumDifference = getColorDifference(color, imagePixelColor);
+
+                if (sumDifference < previousSumDifference) {
+                    previousSumDifference = sumDifference;
+                    bestMatch = key;
+                    mapColorId = 1;
                 }
             }
         }
