@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.fabricmc.loader.api.FabricLoader;
 import net.iamaprogrammer.command.argument.HorizontalDirectionArgumentType;
 import net.iamaprogrammer.command.argument.PathArgumentType;
@@ -26,7 +27,9 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
-import net.minecraft.util.math.*;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3i;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -35,11 +38,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.Map;
 
 public class ImageCommand {
+    private static final SimpleCommandExceptionType NOT_AN_IMAGE_EXCEPTION = new SimpleCommandExceptionType(Text.translatable("commands.place.feature.failed"));
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
         dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(2))
                 .then(CommandManager.literal("paste")
@@ -105,80 +110,41 @@ public class ImageCommand {
     }
 
     private static int generate(CommandContext<ServerCommandSource> context, String imagePath, double scaleX, double scaleZ, boolean vertical, Direction direction) throws CommandSyntaxException {
-        Path runFolder = FabricLoader.getInstance().getGameDir();
-        Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
-        if (Files.exists(fullPath)) {
-            context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
-
-            CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-                long before = System.nanoTime();
-                loadImageAsBlockTextures(context, fullPath, scaleX, scaleZ, vertical, direction);
-                long after = System.nanoTime();
-                return "Finished in: " + ((after-before) / 1000000) + " ms";
-            });
-            future.thenAccept(System.out::println);
-            return 1;
-        } else {
-            context.getSource().sendFeedback(() -> Text.of("Image Does not Exist"), true);
-            return -1;
-        }
+        return loadImage(context, imagePath, false, false, (fullPath, image, colorData) ->
+                LoggingUtil.logTimeToComplete(context, () ->
+                        loadImageAsBlockTextures(image, colorData, context, fullPath, scaleX, scaleZ, vertical, direction)));
     }
-
     private static int generateForMap(CommandContext<ServerCommandSource> context, String imagePath, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap, boolean useMapColors) throws CommandSyntaxException {
-        Path runFolder = FabricLoader.getInstance().getGameDir();
-        Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
-        if (Files.exists(fullPath)) {
-            context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
-
-            CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-                long before = System.nanoTime();
-                loadImageAsMap(context, fullPath, scaleX, scaleZ, direction, useStaircaseHeightMap);
-                long after = System.nanoTime();
-                return "Finished in: " + ((after-before) / 1000000) + " ms";
-            });
-            future.thenAccept(System.out::println);
-            return 1;
-        } else {
-            context.getSource().sendFeedback(() -> Text.of("Image Does not Exist"), true);
-            return -1;
-        }
+        return loadImage(context, imagePath, useMapColors, useStaircaseHeightMap, (fullPath, image, colorData) ->
+                LoggingUtil.logTimeToComplete(context, () ->
+                        loadImageAsMap(image, colorData, context, fullPath, scaleX, scaleZ, direction, useStaircaseHeightMap, useMapColors)));
     }
     private static int giveMap(CommandContext<ServerCommandSource> context, String imagePath, double scaleX, double scaleZ, Direction direction) throws CommandSyntaxException {
-        Path runFolder = FabricLoader.getInstance().getGameDir();
-        Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
-        if (Files.exists(fullPath)) {
-            context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
-
-            CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-                long before = System.nanoTime();
-                loadImageToMap(context, fullPath, scaleX, scaleZ, direction, true);
-                long after = System.nanoTime();
-                return "Finished in: " + ((after-before) / 1000000) + " ms";
-            });
-            future.thenAccept(System.out::println);
-            return 1;
-        } else {
-            context.getSource().sendFeedback(() -> Text.of("Image Does not Exist"), true);
-            return -1;
-        }
+        return loadImage(context, imagePath, (fullPath, image, colorData) ->
+                LoggingUtil.logTimeToComplete(context, () ->
+                        loadImageToMap(image, colorData, context, fullPath, scaleX, scaleZ, direction)));
     }
     private static int generateHeightMap(CommandContext<ServerCommandSource> context, String imagePath, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) throws CommandSyntaxException {
+        return loadImage(context, imagePath, true, false, (fullPath, image, colorData) ->
+                LoggingUtil.logTimeToComplete(context, () ->
+                        loadImageAsHeightMap(image, colorData, context, fullPath, blockState, scaleX, scaleZ, scaleY, direction)));
+    }
+    private static int loadImage(CommandContext<ServerCommandSource> context, String imagePath, boolean useMapColors, boolean useAllMapColors, CommandImageSupplier<Path> function) throws CommandSyntaxException {
         Path runFolder = FabricLoader.getInstance().getGameDir();
         Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
         if (Files.exists(fullPath)) {
             context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
+            File imageFile = new File(fullPath.toUri());
+            try {
+                BufferedImage image = ImageIO.read(new File(fullPath.toUri()));
+                Map<Identifier, List<Color>> colorData = ColorDataUtil.loadColorData(useMapColors, useAllMapColors);
 
-            CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> {
-                long before = System.nanoTime();
-                loadImageAsHeightMap(context, fullPath, blockState, scaleX, scaleZ, scaleY, direction);
-                long after = System.nanoTime();
-                return "Finished in: " + ((after-before) / 1000000) + " ms";
-            });
-            future.exceptionally((e) -> {
-                System.out.println(e);
-                return "";
-            });
-            future.thenAccept(System.out::println);
+                tryThrowWithCondition(isNotImageFile(imageFile), NOT_AN_IMAGE_EXCEPTION.create());
+
+                function.load(fullPath, image, colorData);
+            } catch (IOException e) {
+                System.out.println("An error occurred");
+            }
             return 1;
         } else {
             context.getSource().sendFeedback(() -> Text.of("Image Does not Exist"), true);
@@ -186,87 +152,165 @@ public class ImageCommand {
         }
     }
 
-    private static void loadImageAsBlockTextures(CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, boolean vertical, Direction direction) {
-        try {
-            BufferedImage image = ImageIO.read(new File(path.toUri()));
-            Map<Identifier, List<Color>> colorData = ColorDataUtil.loadColorData(false, false);
-            ServerPlayerEntity player =  context.getSource().getPlayer();
+    private static int loadImage(CommandContext<ServerCommandSource> context, String imagePath, CommandLoadToImageSupplier<Path> function) throws CommandSyntaxException {
+        Path runFolder = FabricLoader.getInstance().getGameDir();
+        Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
+        if (Files.exists(fullPath)) {
+            context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
+            File imageFile = new File(fullPath.toUri());
+            try {
+                BufferedImage image = ImageIO.read(new File(fullPath.toUri()));
+                Map<Identifier, MapColor> colorData = ColorDataUtil.loadColorDataAsMapColor();
+                tryThrowWithCondition(isNotImageFile(imageFile), NOT_AN_IMAGE_EXCEPTION.create());
+                function.load(fullPath, image, colorData);
+            } catch (IOException e) {
+                System.out.println("An error occurred");
+            }
+            return 1;
+        } else {
+            context.getSource().sendFeedback(() -> Text.of("Image Does not Exist"), true);
+            return -1;
+        }
+    }
 
-            if (colorData != null && player != null) {
-                MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, false, vertical);
+    private static void tryThrowWithCondition(boolean condition, CommandSyntaxException exception) throws CommandSyntaxException {
+        if (condition) {
+            throw exception;
+        }
+    }
+    private static boolean isNotImageFile(File file) throws IOException {
+        String mimetype = Files.probeContentType(file.toPath());
+        return mimetype == null || !mimetype.split("/")[0].equals("image");
+    }
+    private static void loadImageAsBlockTextures(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, boolean vertical, Direction direction) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayer();
 
-                Color pixelColor;
-                Color previousPixelColor = null;
-                Identifier previousBlock = null;
-                Map<Color, Identifier> usedColors = new HashMap<>();
+        if (colorData != null && player != null) {
+            MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, false, vertical);
 
-                int placedBlocks = 0;
-                int previousPercentage = 0;
-                for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
-                    for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
+            Color pixelColor;
+            Color previousPixelColor = null;
+            Identifier previousBlock = null;
+            Map<Color, Identifier> usedColors = new HashMap<>();
 
-                        int log = LoggingUtil.logPercentageCompleted(context, placedBlocks, mapToWorldData.getSize(), previousPercentage);
-                        previousPercentage = log != -1 ? log : previousPercentage;
+            int placedBlocks = 0;
+            int previousPercentage = 0;
+            for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
+                for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
 
-                        int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
-                        pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
+                    int log = LoggingUtil.logPercentageCompleted(context, placedBlocks, mapToWorldData.getSize(), previousPercentage);
+                    previousPercentage = log != -1 ? log : previousPercentage;
 
-                        if (vertical) {
-                            if (pixelColor.equals(previousPixelColor)) {
-                                addBlockToWorldVertical(previousBlock, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), x * mapToWorldData.getDirectionMultiplier().getZ(), y, mapToWorldData.getDirectionZ().getAxis());
-                            } else if (usedColors.containsKey(pixelColor)) {
-                                addBlockToWorldVertical(usedColors.get(pixelColor), mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), x * mapToWorldData.getDirectionMultiplier().getZ(), y, mapToWorldData.getDirectionZ().getAxis());
-                            } else {
-                                previousBlock = addBlockToWorldVertical(pixelColor, colorData, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), x * mapToWorldData.getDirectionMultiplier().getZ(), y, mapToWorldData.getDirectionZ().getAxis());
-                                previousPixelColor = pixelColor;
-                                usedColors.put(previousPixelColor, previousBlock);
-                            }
+                    int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
+                    pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
+
+                    if (vertical) {
+                        if (pixelColor.equals(previousPixelColor)) {
+                            addBlockToWorldVertical(previousBlock, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), x * mapToWorldData.getDirectionMultiplier().getZ(), y, mapToWorldData.getDirectionZ().getAxis());
+                        } else if (usedColors.containsKey(pixelColor)) {
+                            addBlockToWorldVertical(usedColors.get(pixelColor), mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), x * mapToWorldData.getDirectionMultiplier().getZ(), y, mapToWorldData.getDirectionZ().getAxis());
                         } else {
-                            int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
-                            int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
-
-                            if (pixelColor.equals(previousPixelColor)) {
-                                addBlockToWorld(previousBlock, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
-                            } else if (usedColors.containsKey(pixelColor)) {
-                                addBlockToWorld(usedColors.get(pixelColor), mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
-                            } else {
-                                previousBlock = addBlockToWorld(pixelColor, colorData, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
-                                previousPixelColor = pixelColor;
-                                usedColors.put(previousPixelColor, previousBlock);
-                            }
+                            previousBlock = addBlockToWorldVertical(pixelColor, colorData, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), x * mapToWorldData.getDirectionMultiplier().getZ(), y, mapToWorldData.getDirectionZ().getAxis());
+                            previousPixelColor = pixelColor;
+                            usedColors.put(previousPixelColor, previousBlock);
                         }
-                        placedBlocks++;
+                    } else {
+                        int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
+                        int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
+
+                        if (pixelColor.equals(previousPixelColor)) {
+                            addBlockToWorld(previousBlock, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
+                        } else if (usedColors.containsKey(pixelColor)) {
+                            addBlockToWorld(usedColors.get(pixelColor), mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
+                        } else {
+                            previousBlock = addBlockToWorld(pixelColor, colorData, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
+                            previousPixelColor = pixelColor;
+                            usedColors.put(previousPixelColor, previousBlock);
+                        }
                     }
+                    placedBlocks++;
                 }
             }
-        } catch (IOException ignored) {}
+        }
     }
-    private static void loadImageAsMap(CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap) {
-        try {
-            BufferedImage image = ImageIO.read(new File(path.toUri()));
-            Map<Identifier, List<Color>> colorData = ColorDataUtil.loadColorData(true, useStaircaseHeightMap);
-            ServerPlayerEntity player =  context.getSource().getPlayer();
+    private static void loadImageAsMap(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap, boolean useMapColors) throws CommandSyntaxException {
+        ServerPlayerEntity player =  context.getSource().getPlayer();
 
-            if (colorData != null && player != null) {
-                MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, true, false);
+        if (colorData != null && player != null) {
+            MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, true, false);
 
-                int[][] heightMap = null;
-                if (useStaircaseHeightMap) {
-                    heightMap = MapDataUtil.generateHeightMap(mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, image, colorData, new ArrayList<>());
+            int[][] heightMap = null;
+            if (useStaircaseHeightMap) {
+                heightMap = MapDataUtil.generateHeightMap(mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, image, colorData, new ArrayList<>());
+            }
+
+            Color pixelColor;
+            Color previousPixelColor = null;
+            Identifier previousBlock = null;
+            Map<Color, Identifier> usedColors = new HashMap<>();
+
+            int placedBlocks = 0;
+            int previousPercentage = 0;
+            for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
+                for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
+
+                    int log = LoggingUtil.logPercentageCompleted(context, placedBlocks, mapToWorldData.getSize(), previousPercentage);
+                    previousPercentage = log != -1 ? log : previousPercentage;
+
+                    int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
+                    pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
+
+                    int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
+                    int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
+
+                    if (pixelColor.equals(previousPixelColor)) {
+                        addBlockToWorldMap(previousBlock, mapToWorldData.getWorld(), heightMap, mapToWorldData.getCenterPosition(), coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ());
+                    } else if (usedColors.containsKey(pixelColor)) {
+                        addBlockToWorldMap(usedColors.get(pixelColor), mapToWorldData.getWorld(), heightMap, mapToWorldData.getCenterPosition(), coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ());
+                    } else {
+                        previousBlock = addBlockToWorldMap(pixelColor, colorData, heightMap, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ());
+                        previousPixelColor = pixelColor;
+                        usedColors.put(previousPixelColor, previousBlock);
+                    }
+                    placedBlocks++;
                 }
+            }
+        }
+    }
+    private static void loadImageToMap(BufferedImage image, Map<Identifier, MapColor> colorData, CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, Direction direction) throws CommandSyntaxException {
+        ServerPlayerEntity player = context.getSource().getPlayer();
+        int DEFAULT_SCALE = 128;
 
-                Color pixelColor;
-                Color previousPixelColor = null;
-                Identifier previousBlock = null;
-                Map<Color, Identifier> usedColors = new HashMap<>();
+        if (image.getWidth() > DEFAULT_SCALE || image.getHeight() > DEFAULT_SCALE) {
+            double divisor = 2;
+            while (true) {
+                if (image.getWidth() > DEFAULT_SCALE && image.getWidth() * (1/divisor) <= DEFAULT_SCALE) {
+                    scaleX = 1/divisor;
+                }
+                if (image.getHeight() > DEFAULT_SCALE && image.getHeight() * (1/divisor) <= DEFAULT_SCALE) {
+                    scaleZ = 1/divisor;
+                }
+                if (image.getWidth()*scaleX <= DEFAULT_SCALE && image.getHeight()*scaleZ <= DEFAULT_SCALE) {
+                    break;
+                }
+                divisor++;
+            }
+        }
 
-                int placedBlocks = 0;
-                int previousPercentage = 0;
+        if (colorData != null && player != null) {
+            MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, true, false);
+
+            Color pixelColor;
+            Color previousPixelColor = null;
+            Pair<MapColor, MapColor.Brightness> previousMapColor;
+            Map<Color, Pair<MapColor, MapColor.Brightness>> usedColors = new HashMap<>();
+
+            ItemStack stack = FilledMapItem.createMap(mapToWorldData.getWorld(), 0, 0, (byte)0, false, false);
+            MapState state = FilledMapItem.getMapState(stack, mapToWorldData.getWorld());
+
+            if (state != null) {
                 for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
                     for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
-
-                        int log = LoggingUtil.logPercentageCompleted(context, placedBlocks, mapToWorldData.getSize(), previousPercentage);
-                        previousPercentage = log != -1 ? log : previousPercentage;
 
                         int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
                         pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
@@ -275,131 +319,61 @@ public class ImageCommand {
                         int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
 
                         if (pixelColor.equals(previousPixelColor)) {
-                            addBlockToWorldMap(previousBlock, mapToWorldData.getWorld(), heightMap, mapToWorldData.getCenterPosition(), coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ());
+                            addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
                         } else if (usedColors.containsKey(pixelColor)) {
-                            addBlockToWorldMap(usedColors.get(pixelColor), mapToWorldData.getWorld(), heightMap, mapToWorldData.getCenterPosition(), coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ());
+                            addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
                         } else {
-                            previousBlock = addBlockToWorldMap(pixelColor, colorData, heightMap, mapToWorldData.getWorld(), mapToWorldData.getCenterPosition(), coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ());
+                            previousMapColor = addColorToMap(state, pixelColor, colorData, coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
                             previousPixelColor = pixelColor;
-                            usedColors.put(previousPixelColor, previousBlock);
+                            usedColors.put(previousPixelColor, previousMapColor);
                         }
-                        placedBlocks++;
                     }
                 }
+                stack.getOrCreateNbt().putBoolean("map_to_lock", true);
+                player.getInventory().insertStack(stack);
+            } else {
+                // TODO: throw error here
             }
-        } catch (IOException ignored) {
-            System.out.println(ignored);
         }
     }
+    private static void loadImageAsHeightMap(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, Path path, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) throws CommandSyntaxException {
+        ServerPlayerEntity player =  context.getSource().getPlayer();
 
+        if (colorData != null && player != null) {
+            MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, true, false);
 
-    private static void loadImageToMap(CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap) {
-        try {
-            BufferedImage image = ImageIO.read(new File(path.toUri()));
-            Map<Identifier, MapColor> colorData = ColorDataUtil.loadColorDataAsMapColor();
-            ServerPlayerEntity player = context.getSource().getPlayer();
-            int DEFAULT_SCALE = 128;
+            Color pixelColor;
+            int pixelColorNorth;
+            int pixelColorSouth;
+            int pixelColorEast;
+            int pixelColorWest;
 
-            if (image.getWidth() > DEFAULT_SCALE || image.getHeight() > DEFAULT_SCALE) {
-                double divisor = 2;
-                while (true) {
-                    if (image.getWidth() > DEFAULT_SCALE && image.getWidth() * (1/divisor) <= DEFAULT_SCALE) {
-                        scaleX = 1/divisor;
-                    }
-                    if (image.getHeight() > DEFAULT_SCALE && image.getHeight() * (1/divisor) <= DEFAULT_SCALE) {
-                        scaleZ = 1/divisor;
-                    }
-                    if (image.getWidth()*scaleX <= DEFAULT_SCALE && image.getHeight()*scaleZ <= DEFAULT_SCALE) {
-                        break;
-                    }
-                    divisor++;
+            int placedBlocks = 0;
+            int previousPercentage = 0;
+            for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
+                for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
+
+                    int log = LoggingUtil.logPercentageCompleted(context, placedBlocks, mapToWorldData.getSize(), previousPercentage);
+                    previousPercentage = log != -1 ? log : previousPercentage;
+
+                    int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
+                    pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
+
+                    pixelColorNorth = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, 0, -1);
+                    pixelColorSouth = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, 0, 1);
+                    pixelColorEast = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, 1, 0);
+                    pixelColorWest = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, -1, 0);
+
+                    int lowest = Math.min(Math.min(pixelColorNorth, pixelColorSouth), Math.min(pixelColorEast, pixelColorWest));
+                    int depth = Math.abs(pixelColor.getRed()-lowest);
+
+                    int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
+                    int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
+
+                    addBlockToHeightMap2(pixelColor, mapToWorldData.getWorld(), blockState, mapToWorldData.getCenterPosition(), scaleY, coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ(), depth);
+                    placedBlocks++;
                 }
             }
-
-            if (colorData != null && player != null) {
-                MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, true, false);
-
-                Color pixelColor;
-                Color previousPixelColor = null;
-                Pair<MapColor, MapColor.Brightness> previousMapColor;
-                Map<Color, Pair<MapColor, MapColor.Brightness>> usedColors = new HashMap<>();
-
-                ItemStack stack = FilledMapItem.createMap(mapToWorldData.getWorld(), 0, 0, (byte)0, false, false);
-                MapState state = FilledMapItem.getMapState(stack, mapToWorldData.getWorld());
-
-                if (state != null) {
-                    for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
-                        for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
-
-                            int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
-                            pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
-
-                            int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
-                            int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
-
-                            if (pixelColor.equals(previousPixelColor)) {
-                                addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
-                            } else if (usedColors.containsKey(pixelColor)) {
-                                addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
-                            } else {
-                                previousMapColor = addColorToMap(state, pixelColor, colorData, coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
-                                previousPixelColor = pixelColor;
-                                usedColors.put(previousPixelColor, previousMapColor);
-                            }
-                        }
-                    }
-                    stack.getOrCreateNbt().putBoolean("map_to_lock", true);
-                    player.getInventory().insertStack(stack);
-                } else {
-                    // TODO: throw error here
-                }
-            }
-        } catch (IOException ignored) {}
-    }
-    private static void loadImageAsHeightMap(CommandContext<ServerCommandSource> context, Path path, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) {
-        try {
-            BufferedImage image = ImageIO.read(new File(path.toUri()));
-            Map<Identifier, List<Color>> colorData = ColorDataUtil.loadColorData(true, false);
-            ServerPlayerEntity player =  context.getSource().getPlayer();
-
-            if (colorData != null && player != null) {
-                MapToWorldData mapToWorldData = new MapToWorldData(image, player, direction, scaleX, scaleZ, true, false);
-
-                Color pixelColor;
-                int pixelColorNorth;
-                int pixelColorSouth;
-                int pixelColorEast;
-                int pixelColorWest;
-
-                int placedBlocks = 0;
-                int previousPercentage = 0;
-                for (int y = 0; y < mapToWorldData.getPixelToBlockSizeY(); y++) {
-                    for (int x = 0; x < mapToWorldData.getPixelToBlockSizeX(); x++) {
-
-                        int log = LoggingUtil.logPercentageCompleted(context, placedBlocks, mapToWorldData.getSize(), previousPercentage);
-                        previousPercentage = log != -1 ? log : previousPercentage;
-
-                        int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
-                        pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
-
-                        pixelColorNorth = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, 0, -1);
-                        pixelColorSouth = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, 0, 1);
-                        pixelColorEast = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, 1, 0);
-                        pixelColorWest = getRelativePixelColor(image, x, y, mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, -1, 0);
-
-                        int lowest = Math.min(Math.min(pixelColorNorth, pixelColorSouth), Math.min(pixelColorEast, pixelColorWest));
-                        int depth = Math.abs(pixelColor.getRed()-lowest);
-
-                        int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
-                        int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
-
-                        addBlockToHeightMap2(pixelColor, mapToWorldData.getWorld(), blockState, mapToWorldData.getCenterPosition(), scaleY, coordX*mapToWorldData.getDirectionMultiplier().getX(), coordZ*mapToWorldData.getDirectionMultiplier().getZ(), depth);
-                        placedBlocks++;
-                    }
-                }
-            }
-        } catch (IOException ignored) {
-            System.out.println(ignored);
         }
     }
     private static int[] pixelCoordinatesWithScale(int x, int y, double scaleX, double scaleZ) {
@@ -452,39 +426,37 @@ public class ImageCommand {
     private static void addBlockToWorld(Identifier blockId, ServerWorld world, Vec3i pos, int x, int y) {
         BlockPos blockPos = new BlockPos(pos.getX()+x, pos.getY(), pos.getZ()+y);
         Block block = Registries.BLOCK.get(blockId);
-        world.setBlockState(blockPos, block.getDefaultState());
+        world.setBlockState(blockPos, block.getDefaultState(), 2);
 
-        if (block instanceof FallingBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState());
+        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
+            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
         }
     }
-
     private static void addBlockToWorldVertical(Identifier blockId, ServerWorld world, Vec3i pos, int x, int y, Direction.Axis axis) {
         BlockPos blockPos = axis == Direction.Axis.X ? new BlockPos(pos.getX(), pos.getY()-y, pos.getZ()+x) : new BlockPos(pos.getX()+x, pos.getY()-y, pos.getZ());
         Block block = Registries.BLOCK.get(blockId);
-        world.setBlockState(blockPos, block.getDefaultState());
+        world.setBlockState(blockPos, block.getDefaultState(), 2);
 
-        if (block instanceof FallingBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState());
+        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
+            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
         }
     }
-
     private static void addBlockToHeightMap(BlockState blockState, ServerWorld world, Vec3i pos, int x, int z, int yOffset) {
         BlockPos blockPos = new BlockPos(pos.getX()+x, pos.getY()+yOffset, pos.getZ()+z);
         Block block = blockState.getBlock();
-        world.setBlockState(blockPos, blockState);
+        world.setBlockState(blockPos, blockState, 2);
 
-        if (block instanceof FallingBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState());
+        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
+            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
         }
     }
     private static void addBlockToWorldMap(Identifier blockId, ServerWorld world, int[][] heightMap, Vec3i pos, int x, int y) {
         BlockPos blockPos = new BlockPos(pos.getX()+x,  heightMap != null ? pos.getY() + heightMap[y][x] : pos.getY(), pos.getZ()+y);
         Block block = Registries.BLOCK.get(blockId);
-        world.setBlockState(blockPos, block.getDefaultState());
+        world.setBlockState(blockPos, block.getDefaultState(), 2);
 
-        if (block instanceof FallingBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState());
+        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
+            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
         }
     }
 }

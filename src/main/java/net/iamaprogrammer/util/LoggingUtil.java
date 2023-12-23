@@ -1,8 +1,12 @@
 package net.iamaprogrammer.util;
 
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.iamaprogrammer.command.CommandFunctionRunnable;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
+
+import java.util.function.Supplier;
 
 public class LoggingUtil {
     public static int logPercentageCompleted(CommandContext<ServerCommandSource> context, int currentStatus, int completedStatus, int previousPercentage) {
@@ -12,5 +16,11 @@ public class LoggingUtil {
             return percentageOf100;
         }
         return -1;
+    }
+    public static void logTimeToComplete(CommandContext<ServerCommandSource> context, CommandFunctionRunnable runnable) throws CommandSyntaxException {
+        long before = System.nanoTime();
+        runnable.run();
+        long after = System.nanoTime();
+        context.getSource().sendFeedback(() -> Text.of("Finished in: " + ((after-before) / 1000000) + " ms"), false);
     }
 }

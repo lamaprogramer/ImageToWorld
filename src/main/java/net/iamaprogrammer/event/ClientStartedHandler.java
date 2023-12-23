@@ -34,13 +34,11 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
         List<Identifier> blockIds = Registries.BLOCK.getIds().stream().toList();
         Path configFolder = FabricLoader.getInstance().getConfigDir();
 
-
         List<Identifier> blockIdBlacklist = new ArrayList<>();
         List<MapColor> mapColorBlacklist = new ArrayList<>();
 
         StringBuilder fileData = new StringBuilder();
         StringBuilder mapData = new StringBuilder();
-        //System.out.println(blockIds);
 
         Path textureDataPath = Path.of(configFolder.toString(), "imagetoworld" + File.separator + "texturedata.txt");
         Path mapDataPath = Path.of(configFolder.toString(), "imagetoworld" + File.separator + "mapdata.txt");
@@ -190,28 +188,14 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
         int resolutionX = 1;
         int resolutionY = 1;
 
-
         int redSum = 0;
         int greenSum = 0;
         int blueSum = 0;
         int blankPixels = 0;
-        int likelyNonFullBlock = 0;
         for (int y = 0; y < image.getHeight()-1; y+=resolutionY) {
             for (int x = 0; x < image.getWidth()-1; x+=resolutionX) {
                 Color color = new Color(image.getRGB(x, y), true);
                 int alpha = color.getAlpha();
-
-                // Check if textures could be full block
-                if (x == 1 || y == 1 || x == image.getWidth()-1 || y == image.getHeight()-1) { // Bounds of image
-                    if (alpha != 0) {
-                        likelyNonFullBlock = 0;
-                    } else {
-                        likelyNonFullBlock++;
-                        if (likelyNonFullBlock == 3) {
-                            return null;
-                        }
-                    }
-                }
 
                 if (alpha != 0) {
                     redSum += color.getRed();
