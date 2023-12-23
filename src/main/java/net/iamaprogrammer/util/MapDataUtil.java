@@ -1,25 +1,15 @@
 package net.iamaprogrammer.util;
 
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Pair;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class MapDataUtil {
-
-    private static List<List<Pair<Identifier, Integer>>> create2dArrayList(int sizeX, int sizeY) {
-        List<List<Pair<Identifier, Integer>>> arrayList = new ArrayList<>(sizeY);
-        for (int i = 0; i < sizeY; i++) {
-            arrayList.add(new ArrayList<>(sizeX));
-        }
-        return arrayList;
-    }
-    public static int[][] generateHeightMap(int sizeX, int sizeY, double scaleX, double scaleY, BufferedImage image, Map<Identifier, List<Color>> colorData, ArrayList<Identifier> blacklist) {
+    public static int[][] generateHeightMap(int sizeX, int sizeY, double scaleX, double scaleY, BufferedImage image, Map<Identifier, List<Color>> colorData) {
         int[][] heightMap = new int[sizeX][sizeY];
 
         int blockSizeX = (int) (image.getWidth() * scaleX);

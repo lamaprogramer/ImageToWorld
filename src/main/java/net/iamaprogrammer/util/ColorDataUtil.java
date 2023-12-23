@@ -170,15 +170,6 @@ public class ColorDataUtil {
         }
         return new Pair<>(bestMatch, mapColorId);
     }
-
-    private static ArrayList<Color> getMapColors(String[] mapColors) {
-        ArrayList<Color> colors = new ArrayList<>();
-        for (String mapColor : mapColors) {
-            String[] mapRGB = mapColor.split(" ");
-            colors.add(getColor(mapRGB));
-        }
-        return colors;
-    }
     private static Color getColor(String[] rgb) {
         int r = Integer.parseInt(rgb[0]);
         int g = Integer.parseInt(rgb[1]);

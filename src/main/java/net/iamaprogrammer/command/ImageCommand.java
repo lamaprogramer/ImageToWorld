@@ -38,7 +38,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,26 +109,26 @@ public class ImageCommand {
     }
 
     private static int generate(CommandContext<ServerCommandSource> context, String imagePath, double scaleX, double scaleZ, boolean vertical, Direction direction) throws CommandSyntaxException {
-        return loadImage(context, imagePath, false, false, (fullPath, image, colorData) ->
+        return loadImage(context, imagePath, false, false, (image, colorData) ->
                 LoggingUtil.logTimeToComplete(context, () ->
-                        loadImageAsBlockTextures(image, colorData, context, fullPath, scaleX, scaleZ, vertical, direction)));
+                        loadImageAsBlockTextures(image, colorData, context, scaleX, scaleZ, vertical, direction)));
     }
     private static int generateForMap(CommandContext<ServerCommandSource> context, String imagePath, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap, boolean useMapColors) throws CommandSyntaxException {
-        return loadImage(context, imagePath, useMapColors, useStaircaseHeightMap, (fullPath, image, colorData) ->
+        return loadImage(context, imagePath, useMapColors, useStaircaseHeightMap, (image, colorData) ->
                 LoggingUtil.logTimeToComplete(context, () ->
-                        loadImageAsMap(image, colorData, context, fullPath, scaleX, scaleZ, direction, useStaircaseHeightMap, useMapColors)));
+                        loadImageAsMap(image, colorData, context, scaleX, scaleZ, direction, useStaircaseHeightMap)));
     }
     private static int giveMap(CommandContext<ServerCommandSource> context, String imagePath, double scaleX, double scaleZ, Direction direction) throws CommandSyntaxException {
-        return loadImage(context, imagePath, (fullPath, image, colorData) ->
+        return loadImage(context, imagePath, (image, colorData) ->
                 LoggingUtil.logTimeToComplete(context, () ->
-                        loadImageToMap(image, colorData, context, fullPath, scaleX, scaleZ, direction)));
+                        loadImageToMap(image, colorData, context, scaleX, scaleZ, direction)));
     }
     private static int generateHeightMap(CommandContext<ServerCommandSource> context, String imagePath, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) throws CommandSyntaxException {
-        return loadImage(context, imagePath, true, false, (fullPath, image, colorData) ->
+        return loadImage(context, imagePath, true, false, (image, colorData) ->
                 LoggingUtil.logTimeToComplete(context, () ->
-                        loadImageAsHeightMap(image, colorData, context, fullPath, blockState, scaleX, scaleZ, scaleY, direction)));
+                        loadImageAsHeightMap(image, colorData, context, blockState, scaleX, scaleZ, scaleY, direction)));
     }
-    private static int loadImage(CommandContext<ServerCommandSource> context, String imagePath, boolean useMapColors, boolean useAllMapColors, CommandImageSupplier<Path> function) throws CommandSyntaxException {
+    private static int loadImage(CommandContext<ServerCommandSource> context, String imagePath, boolean useMapColors, boolean useAllMapColors, CommandImageSupplier function) throws CommandSyntaxException {
         Path runFolder = FabricLoader.getInstance().getGameDir();
         Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
         if (Files.exists(fullPath)) {
@@ -141,7 +140,7 @@ public class ImageCommand {
 
                 tryThrowWithCondition(isNotImageFile(imageFile), NOT_AN_IMAGE_EXCEPTION.create());
 
-                function.load(fullPath, image, colorData);
+                function.load(image, colorData);
             } catch (IOException e) {
                 System.out.println("An error occurred");
             }
@@ -152,7 +151,7 @@ public class ImageCommand {
         }
     }
 
-    private static int loadImage(CommandContext<ServerCommandSource> context, String imagePath, CommandLoadToImageSupplier<Path> function) throws CommandSyntaxException {
+    private static int loadImage(CommandContext<ServerCommandSource> context, String imagePath, CommandLoadToImageSupplier function) throws CommandSyntaxException {
         Path runFolder = FabricLoader.getInstance().getGameDir();
         Path fullPath = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
         if (Files.exists(fullPath)) {
@@ -162,7 +161,7 @@ public class ImageCommand {
                 BufferedImage image = ImageIO.read(new File(fullPath.toUri()));
                 Map<Identifier, MapColor> colorData = ColorDataUtil.loadColorDataAsMapColor();
                 tryThrowWithCondition(isNotImageFile(imageFile), NOT_AN_IMAGE_EXCEPTION.create());
-                function.load(fullPath, image, colorData);
+                function.load(image, colorData);
             } catch (IOException e) {
                 System.out.println("An error occurred");
             }
@@ -182,7 +181,7 @@ public class ImageCommand {
         String mimetype = Files.probeContentType(file.toPath());
         return mimetype == null || !mimetype.split("/")[0].equals("image");
     }
-    private static void loadImageAsBlockTextures(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, boolean vertical, Direction direction) throws CommandSyntaxException {
+    private static void loadImageAsBlockTextures(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, double scaleX, double scaleZ, boolean vertical, Direction direction) {
         ServerPlayerEntity player = context.getSource().getPlayer();
 
         if (colorData != null && player != null) {
@@ -233,7 +232,7 @@ public class ImageCommand {
             }
         }
     }
-    private static void loadImageAsMap(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap, boolean useMapColors) throws CommandSyntaxException {
+    private static void loadImageAsMap(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap) {
         ServerPlayerEntity player =  context.getSource().getPlayer();
 
         if (colorData != null && player != null) {
@@ -241,7 +240,7 @@ public class ImageCommand {
 
             int[][] heightMap = null;
             if (useStaircaseHeightMap) {
-                heightMap = MapDataUtil.generateHeightMap(mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, image, colorData, new ArrayList<>());
+                heightMap = MapDataUtil.generateHeightMap(mapToWorldData.getPixelToBlockSizeX(), mapToWorldData.getPixelToBlockSizeY(), scaleX, scaleZ, image, colorData);
             }
 
             Color pixelColor;
@@ -277,7 +276,7 @@ public class ImageCommand {
             }
         }
     }
-    private static void loadImageToMap(BufferedImage image, Map<Identifier, MapColor> colorData, CommandContext<ServerCommandSource> context, Path path, double scaleX, double scaleZ, Direction direction) throws CommandSyntaxException {
+    private static void loadImageToMap(BufferedImage image, Map<Identifier, MapColor> colorData, CommandContext<ServerCommandSource> context, double scaleX, double scaleZ, Direction direction){
         ServerPlayerEntity player = context.getSource().getPlayer();
         int DEFAULT_SCALE = 128;
 
@@ -331,12 +330,10 @@ public class ImageCommand {
                 }
                 stack.getOrCreateNbt().putBoolean("map_to_lock", true);
                 player.getInventory().insertStack(stack);
-            } else {
-                // TODO: throw error here
             }
         }
     }
-    private static void loadImageAsHeightMap(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, Path path, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) throws CommandSyntaxException {
+    private static void loadImageAsHeightMap(BufferedImage image, Map<Identifier, List<Color>> colorData, CommandContext<ServerCommandSource> context, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) {
         ServerPlayerEntity player =  context.getSource().getPlayer();
 
         if (colorData != null && player != null) {
@@ -428,33 +425,30 @@ public class ImageCommand {
         Block block = Registries.BLOCK.get(blockId);
         world.setBlockState(blockPos, block.getDefaultState(), 2);
 
-        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
-        }
+        placeScaffoldingIfNeeded(world, block, blockPos);
     }
     private static void addBlockToWorldVertical(Identifier blockId, ServerWorld world, Vec3i pos, int x, int y, Direction.Axis axis) {
         BlockPos blockPos = axis == Direction.Axis.X ? new BlockPos(pos.getX(), pos.getY()-y, pos.getZ()+x) : new BlockPos(pos.getX()+x, pos.getY()-y, pos.getZ());
         Block block = Registries.BLOCK.get(blockId);
         world.setBlockState(blockPos, block.getDefaultState(), 2);
 
-        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
-        }
+        placeScaffoldingIfNeeded(world, block, blockPos);
     }
     private static void addBlockToHeightMap(BlockState blockState, ServerWorld world, Vec3i pos, int x, int z, int yOffset) {
         BlockPos blockPos = new BlockPos(pos.getX()+x, pos.getY()+yOffset, pos.getZ()+z);
         Block block = blockState.getBlock();
         world.setBlockState(blockPos, blockState, 2);
 
-        if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
-            world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
-        }
+        placeScaffoldingIfNeeded(world, block, blockPos);
     }
     private static void addBlockToWorldMap(Identifier blockId, ServerWorld world, int[][] heightMap, Vec3i pos, int x, int y) {
         BlockPos blockPos = new BlockPos(pos.getX()+x,  heightMap != null ? pos.getY() + heightMap[y][x] : pos.getY(), pos.getZ()+y);
         Block block = Registries.BLOCK.get(blockId);
         world.setBlockState(blockPos, block.getDefaultState(), 2);
 
+        placeScaffoldingIfNeeded(world, block, blockPos);
+    }
+    private static void placeScaffoldingIfNeeded(ServerWorld world, Block block, BlockPos blockPos) {
         if (block instanceof FallingBlock && world.getBlockState(blockPos).getBlock() instanceof AirBlock) {
             world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
         }

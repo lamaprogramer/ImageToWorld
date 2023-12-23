@@ -4,8 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
 import net.minecraft.block.MapColor;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.registry.Registries;
@@ -16,12 +14,11 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted {
     @Override
@@ -69,10 +66,9 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
                                         if (imageResource.isPresent()) {
                                             BufferedImage image = ImageIO.read(imageResource.get().getInputStream());
                                             Color average = this.calculateImageAverage(image);
-                                            if (average != null) {
-                                                String data = this.averageImageColor(blockId, average) + "\n";
-                                                fileData.append(data);
-                                            }
+
+                                            String data = this.averageImageColor(blockId, average) + "\n";
+                                            fileData.append(data);
                                         }
                                     }
                                 }
@@ -96,19 +92,6 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
         int colorId = color.id;
         return blockId + "#" + colorId;
     }
-
-    private int mapColorBrightness(int color, int multiplier) {
-        return (int) Math.floor((double) (color * multiplier) / 255);
-    }
-
-    private int[] rgbFrom8bit(int color) {
-        int red =   (color & 0x00ff0000) >> 16;
-        int green = (color & 0x0000ff00) >> 8;
-        int blue =   color & 0x000000ff;
-        return new int[]{red, green, blue};
-    }
-
-
     private boolean filterBlockModels(List<Identifier> allBlockIds, Identifier blockId, Identifier modelId, String modelName) {
         String[] strings = modelName.contains("_") ? modelName.split("_") : new String[]{modelName};
 

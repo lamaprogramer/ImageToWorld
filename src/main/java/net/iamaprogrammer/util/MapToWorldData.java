@@ -3,64 +3,19 @@ package net.iamaprogrammer.util;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.Vec3i;
 
 import java.awt.image.BufferedImage;
 
 public class MapToWorldData {
-    public ServerWorld getWorld() {
-        return world;
-    }
-
-    public Direction getDirectionX() {
-        return directionX;
-    }
-
-    public Direction getDirectionZ() {
-        return directionZ;
-    }
-
-    public Vec3i getStartPosition() {
-        return startPosition;
-    }
-
-    public Vec3i getStartDirection() {
-        return startDirection;
-    }
-
-    public Vec3i getCenterPosition() {
-        return centerPosition;
-    }
-
-    public Vec3i getDirectionMultiplier() {
-        return directionMultiplier;
-    }
-
     private final ServerWorld world;
     private final Direction directionX;
     private final Direction directionZ;
-
     private final Vec3i startPosition;
     private final Vec3i startDirection;
-
-    public int getPixelToBlockSizeX() {
-        return pixelToBlockSizeX;
-    }
-
-    public int getPixelToBlockSizeY() {
-        return pixelToBlockSizeY;
-    }
-
     private final int pixelToBlockSizeX;
     private final int pixelToBlockSizeY;
-
-    public int getSize() {
-        return size;
-    }
-
     private final int size;
-
     private final Vec3i centerPosition;
     private final Vec3i directionMultiplier;
 
@@ -98,6 +53,36 @@ public class MapToWorldData {
 
             this.centerPosition = calculatePositionToCenter(this.startPosition, this.startDirection, this.pixelToBlockSizeX, this.pixelToBlockSizeY);
         }
+    }
+    public ServerWorld getWorld() {
+        return world;
+    }
+    public Direction getDirectionX() {
+        return directionX;
+    }
+    public Direction getDirectionZ() {
+        return directionZ;
+    }
+    public Vec3i getStartPosition() {
+        return startPosition;
+    }
+    public Vec3i getStartDirection() {
+        return startDirection;
+    }
+    public Vec3i getCenterPosition() {
+        return centerPosition;
+    }
+    public Vec3i getDirectionMultiplier() {
+        return directionMultiplier;
+    }
+    public int getSize() {
+        return size;
+    }
+    public int getPixelToBlockSizeX() {
+        return pixelToBlockSizeX;
+    }
+    public int getPixelToBlockSizeY() {
+        return pixelToBlockSizeY;
     }
     private static Vec3i getStartPos(boolean snapToMapGrid, ServerPlayerEntity player) {
         Vec3i startPos = player.getBlockPos();

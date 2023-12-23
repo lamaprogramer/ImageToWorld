@@ -6,8 +6,6 @@ import net.iamaprogrammer.command.CommandFunctionRunnable;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
 
-import java.util.function.Supplier;
-
 public class LoggingUtil {
     public static int logPercentageCompleted(CommandContext<ServerCommandSource> context, int currentStatus, int completedStatus, int previousPercentage) {
         int percentageOf100 = (int) Math.floor(((double)currentStatus/completedStatus) * 100);
