@@ -15,6 +15,7 @@ public class LoggingUtil {
         }
         return -1;
     }
+
     public static void logTimeToComplete(CommandContext<ServerCommandSource> context, CommandFunctionRunnable runnable) throws CommandSyntaxException {
         long before = System.nanoTime();
         runnable.run();

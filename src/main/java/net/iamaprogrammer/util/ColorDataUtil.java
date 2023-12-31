@@ -55,7 +55,6 @@ public class ColorDataUtil {
                     String[] rgb = splitLine[1].split(" ");
                     data.put(blockId, List.of(getColor(rgb)));
                 }
-
                 return data;
             }
         }
@@ -81,28 +80,8 @@ public class ColorDataUtil {
         return null;
     }
 
-    private static int mapColorBrightness(int color, int multiplier) {
-        return (int) Math.floor((double) (color * multiplier) / 255);
-    }
-
-    private static Color colorFromMapColor(MapColor mapColor, int brightness) {
-        int[] rgb = rgbFrom8bit(mapColor.color);
-        return new Color(
-                mapColorBrightness(rgb[0], MapColor.Brightness.validateAndGet(brightness).brightness),
-                mapColorBrightness(rgb[1], MapColor.Brightness.validateAndGet(brightness).brightness),
-                mapColorBrightness(rgb[2], MapColor.Brightness.validateAndGet(brightness).brightness)
-        );
-    }
-
-    private static int[] rgbFrom8bit(int color) {
-        int red =   (color & 0x00ff0000) >> 16;
-        int green = (color & 0x0000ff00) >> 8;
-        int blue =   color & 0x000000ff;
-        return new int[]{red, green, blue};
-    }
-
     public static Identifier getBestPixelToBlockMatch(Color imagePixelColor, Map<Identifier, List<Color>> colorData) {
-        int previousSumDifference = 255+255+255;
+        int previousSumDifference = 255*3;
         Identifier bestMatch = null;
 
         for (Identifier key : colorData.keySet()) {
@@ -119,7 +98,7 @@ public class ColorDataUtil {
     }
 
     public static Pair<MapColor, MapColor.Brightness> getBestPixelToMapColorMatch(Color imagePixelColor, Map<Identifier, MapColor> colorData) {
-        int previousSumDifference = 255+255+255;
+        int previousSumDifference = 255*3;
         MapColor bestColor = null;
         MapColor.Brightness bestBrightness = null;
 
@@ -140,7 +119,7 @@ public class ColorDataUtil {
     }
 
     public static Pair<Identifier, Integer> getBestPixelToMapColorMatch(Color imagePixelColor, Map<Identifier, List<Color>> colorData, boolean useAllColors) {
-        int previousSumDifference = 255 + 255 + 255;
+        int previousSumDifference = 255*3;
         Identifier bestMatch = null;
         int mapColorId = -1;
 
@@ -170,15 +149,37 @@ public class ColorDataUtil {
         }
         return new Pair<>(bestMatch, mapColorId);
     }
+
+    public static int getColorDifference(Color color1, Color color2) {
+        return Math.abs(color1.getRed() - color2.getRed()) +
+                Math.abs(color1.getGreen() - color2.getGreen()) +
+                Math.abs(color1.getBlue() - color2.getBlue());
+    }
+
     private static Color getColor(String[] rgb) {
         int r = Integer.parseInt(rgb[0]);
         int g = Integer.parseInt(rgb[1]);
         int b = Integer.parseInt(rgb[2]);
         return new Color(r, g, b);
     }
-    public static int getColorDifference(Color color1, Color color2) {
-        return Math.abs(color1.getRed() - color2.getRed()) +
-                Math.abs(color1.getGreen() - color2.getGreen()) +
-                Math.abs(color1.getBlue() - color2.getBlue());
+
+    private static int mapColorBrightness(int color, int multiplier) {
+        return (int) Math.floor((double) (color * multiplier) / 255);
+    }
+
+    private static Color colorFromMapColor(MapColor mapColor, int brightness) {
+        int[] rgb = rgbFrom8bit(mapColor.color);
+        return new Color(
+                mapColorBrightness(rgb[0], MapColor.Brightness.validateAndGet(brightness).brightness),
+                mapColorBrightness(rgb[1], MapColor.Brightness.validateAndGet(brightness).brightness),
+                mapColorBrightness(rgb[2], MapColor.Brightness.validateAndGet(brightness).brightness)
+        );
+    }
+
+    private static int[] rgbFrom8bit(int color) {
+        int red =   (color & 0x00ff0000) >> 16;
+        int green = (color & 0x0000ff00) >> 8;
+        int blue =   color & 0x000000ff;
+        return new int[]{red, green, blue};
     }
 }

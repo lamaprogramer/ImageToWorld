@@ -70,7 +70,7 @@ public class MapDataUtil {
     }
 
     public static int getBestPixelToMapHeight(Color imagePixelColor, Map<Identifier, List<Color>> colorData) {
-        int previousSumDifference = 255+255+255;
+        int previousSumDifference = 255*3;
         int mapColorId = -1;
 
         for (List<Color> colors : colorData.values()) {

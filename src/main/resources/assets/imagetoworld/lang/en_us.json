@@ -1,5 +1,9 @@
 {
-  "argument.scale.invalid": "Invalid scale format: %s",
-  "argument.scale.invalid.zero": "Scale cannot be zero: %s",
-  "argument.direction.invalid": "Invalid direction: %s"
+  "argument.scale.invalid": "Invalid Scale Format: %s",
+  "argument.scale.invalid.zero": "Scale Cannot Be Zero: %s",
+  "argument.direction.invalid": "Invalid Direction: %s",
+  "command.image.invalid": "Invalid Image File: %s",
+  "command.color.data.missing": "Color Data Missing!",
+  "command.image.large": "Image Too Large!: %s",
+  "command.image.failed": "Failed To Process Image."
 }

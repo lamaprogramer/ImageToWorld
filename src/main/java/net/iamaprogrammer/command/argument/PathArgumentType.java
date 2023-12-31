@@ -23,7 +23,6 @@ public class PathArgumentType implements ArgumentType<String> {
     private static final Path RUN_FOLDER = FabricLoader.getInstance().getGameDir();
     private static final Path IMAGES_FOLDER = Path.of(RUN_FOLDER.toString(), "images" + File.separator);
     private static final DynamicCommandExceptionType FILE_NOT_FOUND;
-    private static final DynamicCommandExceptionType INVALID_PATH;
 
 
     public static PathArgumentType path() {
@@ -75,6 +74,5 @@ public class PathArgumentType implements ArgumentType<String> {
 
     static {
         FILE_NOT_FOUND = new DynamicCommandExceptionType((file) -> Text.translatable("argument.path.filenotfound", file));
-        INVALID_PATH = new DynamicCommandExceptionType((file) -> Text.translatable("argument.path.invalid", file));
     }
 }
