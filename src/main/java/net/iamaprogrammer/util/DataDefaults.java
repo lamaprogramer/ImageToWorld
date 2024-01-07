@@ -43,6 +43,5 @@ public class DataDefaults {
                 outputStream.write(bytes, 0, read);
             }
         }
-
     }
 }

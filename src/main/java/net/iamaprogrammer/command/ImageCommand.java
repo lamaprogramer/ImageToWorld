@@ -159,6 +159,7 @@ public class ImageCommand {
 
             if (colorData == null) {
                 DataDefaults.loadDefaults();
+                colorData = ColorDataUtil.loadColorData(useMapColors, useAllMapColors);
             }
             tryThrowWithCondition(colorData == null, COLOR_DATA_MISSING.create());
             tryThrowWithCondition(image.getWidth() > 1024 || image.getHeight() > 1024, IMAGE_TOO_LARGE.create(imageFile.getName()));

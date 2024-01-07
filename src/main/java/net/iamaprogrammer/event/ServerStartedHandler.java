@@ -15,13 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class ServerStartedHandler implements ServerLifecycleEvents.ServerStarted {
-
     @Override
     public void onServerStarted(MinecraftServer server) {
         try {
             MinecraftClient.getInstance();
         } catch (RuntimeException e) {
-            System.out.println("client is null");
             DataDefaults.loadDefaults();
         }
     }
