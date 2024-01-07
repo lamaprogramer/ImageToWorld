@@ -3,11 +3,13 @@ package net.iamaprogrammer;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.ArgumentTypeRegistry;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.iamaprogrammer.command.ImageCommand;
 import net.iamaprogrammer.command.argument.HorizontalDirectionArgumentType;
 import net.iamaprogrammer.command.argument.PathArgumentType;
 import net.iamaprogrammer.command.argument.ScaleArgumentSerializer;
 import net.iamaprogrammer.command.argument.ScaleArgumentType;
+import net.iamaprogrammer.event.ServerStartedHandler;
 import net.minecraft.command.argument.serialize.ConstantArgumentSerializer;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
@@ -19,6 +21,7 @@ public class ImageToWorld implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		ServerLifecycleEvents.SERVER_STARTED.register(new ServerStartedHandler());
 		CommandRegistrationCallback.EVENT.register(ImageCommand::register);
 		ArgumentTypeRegistry.registerArgumentType(
 				new Identifier(MODID, "scale"), ScaleArgumentType.class, new ScaleArgumentSerializer());

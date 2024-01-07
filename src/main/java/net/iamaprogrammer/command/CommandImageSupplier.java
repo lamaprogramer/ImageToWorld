@@ -1,7 +1,6 @@
 package net.iamaprogrammer.command;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 

@@ -1,9 +1,9 @@
 {
-  "argument.scale.invalid": "Invalid Scale Format: %s",
-  "argument.scale.invalid.zero": "Scale Cannot Be Zero: %s",
-  "argument.direction.invalid": "Invalid Direction: %s",
-  "command.image.invalid": "Invalid Image File: %s",
-  "command.color.data.missing": "Color Data Missing!",
-  "command.image.large": "Image Too Large!: %s",
-  "command.image.failed": "Failed To Process Image."
+  "imagetoworld.argument.scale.invalid": "Invalid Scale Format: %s",
+  "imagetoworld.argument.scale.invalid.zero": "Scale Cannot Be Zero: %s",
+  "imagetoworld.argument.direction.invalid": "Invalid Direction: %s",
+  "imagetoworld.command.image.invalid": "Invalid Image File: %s",
+  "imagetoworld.command.color.data.missing": "Color Data Missing!",
+  "imagetoworld.command.image.large": "Image Too Large!: %s",
+  "imagetoworld.command.image.failed": "Failed To Process Image."
 }

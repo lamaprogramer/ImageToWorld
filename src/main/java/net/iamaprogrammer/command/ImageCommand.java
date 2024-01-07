@@ -44,10 +44,10 @@ import java.util.List;
 import java.util.Map;
 
 public class ImageCommand {
-    private static final DynamicCommandExceptionType NOT_AN_IMAGE_EXCEPTION = new DynamicCommandExceptionType((fileName) -> Text.translatable("command.image.invalid", fileName));
-    private static final DynamicCommandExceptionType IMAGE_TOO_LARGE = new DynamicCommandExceptionType((fileName) -> Text.translatable("command.image.large", fileName));
-    private static final SimpleCommandExceptionType COLOR_DATA_MISSING = new SimpleCommandExceptionType(Text.translatable("command.color.data.missing"));
-    private static final SimpleCommandExceptionType IMAGE_PROCESSING_EXCEPTION = new SimpleCommandExceptionType(Text.translatable("command.image.failed"));
+    private static final DynamicCommandExceptionType NOT_AN_IMAGE_EXCEPTION = new DynamicCommandExceptionType((fileName) -> Text.translatable("imagetoworld.command.image.invalid", fileName));
+    private static final DynamicCommandExceptionType IMAGE_TOO_LARGE = new DynamicCommandExceptionType((fileName) -> Text.translatable("imagetoworld.command.image.large", fileName));
+    private static final SimpleCommandExceptionType COLOR_DATA_MISSING = new SimpleCommandExceptionType(Text.translatable("imagetoworld.command.color.data.missing"));
+    private static final SimpleCommandExceptionType IMAGE_PROCESSING_EXCEPTION = new SimpleCommandExceptionType(Text.translatable("imagetoworld.command.image.failed"));
 
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
         dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(2))
@@ -157,6 +157,9 @@ public class ImageCommand {
             BufferedImage image = ImageIO.read(imageFile);
             Map<Identifier, List<Color>> colorData = ColorDataUtil.loadColorData(useMapColors, useAllMapColors);
 
+            if (colorData == null) {
+                DataDefaults.loadDefaults();
+            }
             tryThrowWithCondition(colorData == null, COLOR_DATA_MISSING.create());
             tryThrowWithCondition(image.getWidth() > 1024 || image.getHeight() > 1024, IMAGE_TOO_LARGE.create(imageFile.getName()));
 
