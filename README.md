@@ -9,6 +9,10 @@ This mod gives a variety of ways you can add images to your world:
 - Paste directly to a map without placing blocks in the world
 - Paste Images as Heightmaps
 
+Images you want to load into your world should be put in the new `images` folder in the `.minecraft` directory so that this mod can access them.
+
+When pasting your images keep in mind that the max size the image can be at full resolution is 1024x1024. Any larger and you will have to scale it down to an appropriate size.
+
 ## Usage
 
 When pasting images into your world, you are given a few options to configure how your image will generate, such as scale, facing direction, and patterns.
