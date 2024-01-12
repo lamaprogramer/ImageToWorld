@@ -2,14 +2,7 @@
 
 Image To World is a utility mod for pasting images into your Minecraft world.
 
-### A note on server-client compatibility:
-
-This mod works best in singleplayer, because the client and server can freely communicate.
-
-Because of the way Minecraft handles its resources, pure server compatibility is a bit weird, since the server has no access to textures, so if you want to use this mod on a server, you will have to either:
-
-- Use the default texture and map data files, which contain only vanilla block data.
-- Or generate the files on a client and bring them over to your server, which will give you modded block support for whichever mods were on the client you generated them on.
+Mod must be installed on both the **client and the server**.
 
 ## General Info:
 
