@@ -3,13 +3,13 @@
 	"id": "imagetoworld",
 	"version": "${version}",
 	"name": "ImageToWorld",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "A mod for loading images into your world.",
 	"authors": [
 		"Iamaprogrammer"
 	],
 	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
+		"homepage": "https://github.com/lamaprogramer/ImageToWorld",
+		"sources": "https://github.com/lamaprogramer/ImageToWorld"
 	},
 	"license": "MIT",
 	"icon": "assets/imagetoworld/icon.png",
