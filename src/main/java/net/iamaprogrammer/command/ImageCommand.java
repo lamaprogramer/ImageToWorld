@@ -4,12 +4,12 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
-import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
-import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.iamaprogrammer.command.argument.HorizontalDirectionArgumentType;
-import net.iamaprogrammer.command.argument.PathArgumentType;
+import net.iamaprogrammer.command.argument.ImagePathArgumentType;
 import net.iamaprogrammer.command.argument.ScaleArgumentType;
+import net.iamaprogrammer.network.NetworkingConstants;
 import net.iamaprogrammer.util.*;
 import net.minecraft.block.*;
 import net.minecraft.command.CommandRegistryAccess;
@@ -34,87 +34,78 @@ import net.minecraft.util.math.Vec3i;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class ImageCommand {
-    private static final DynamicCommandExceptionType NOT_AN_IMAGE_EXCEPTION = new DynamicCommandExceptionType((fileName) -> Text.translatable("imagetoworld.command.image.invalid", fileName));
-    private static final DynamicCommandExceptionType IMAGE_TOO_LARGE = new DynamicCommandExceptionType((fileName) -> Text.translatable("imagetoworld.command.image.large", fileName));
-    private static final SimpleCommandExceptionType COLOR_DATA_MISSING = new SimpleCommandExceptionType(Text.translatable("imagetoworld.command.color.data.missing"));
-    private static final SimpleCommandExceptionType IMAGE_PROCESSING_EXCEPTION = new SimpleCommandExceptionType(Text.translatable("imagetoworld.command.image.failed"));
-
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
         dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(2))
                 .then(CommandManager.literal("paste")
-                        .then(CommandManager.argument("imagePath", PathArgumentType.path())
+                        .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                 .then(CommandManager.argument("position", BlockPosArgumentType.blockPos())
                                         .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                 .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
                                                         .then(CommandManager.argument("vertical", BoolArgumentType.bool())
-                                                                .executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), true, Direction.NORTH))
+                                                                .executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), true, Direction.NORTH))
                                                         )
                                                         .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                .executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), false, HorizontalDirectionArgumentType.getDirection(context, "direction")))
-                                                        ).executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), false, Direction.NORTH))
+                                                                .executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), false, HorizontalDirectionArgumentType.getDirection(context, "direction")))
+                                                        ).executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), false, Direction.NORTH))
                                                 )
-                                        ).executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), 1, 1, false, Direction.NORTH))
+                                        ).executes((context) -> ImageCommand.generate(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, false, Direction.NORTH))
                                 )
                         )
                 )
                 .then(CommandManager.literal("pasteToMap")
-                        .then(CommandManager.argument("imagePath", PathArgumentType.path())
+                        .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                 .then(CommandManager.argument("position", BlockPosArgumentType.blockPos())
                                         .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                 .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
                                                         .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction"), false, true))
+                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction"), false, true))
                                                         )
                                                         .then(CommandManager.argument("useStaircaseHeightMap", BoolArgumentType.bool())
                                                                 .then(CommandManager.argument("useMapColors", BoolArgumentType.bool())
-                                                                        .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), BoolArgumentType.getBool(context, "useMapColors")))
-                                                                ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), true))
-                                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, false, true))
+                                                                        .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), BoolArgumentType.getBool(context, "useMapColors")))
+                                                                ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), true))
+                                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, false, true))
                                                 )
-                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), 1, 1, Direction.NORTH, false, true))
+                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH, false, true))
                                 )
                         )
                 )
                 .then(CommandManager.literal("heightmap")
-                        .then(CommandManager.argument("imagePath", PathArgumentType.path())
+                        .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                 .then(CommandManager.argument("block", BlockStateArgumentType.blockState(commandRegistryAccess))
                                         .then(CommandManager.argument("position", BlockPosArgumentType.blockPos())
                                                 .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                         .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
                                                                 .then(CommandManager.argument("scaleY", ScaleArgumentType.scale())
                                                                         .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                                .executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), ScaleArgumentType.getScale(context, "scaleY"), HorizontalDirectionArgumentType.getDirection(context, "direction")))
-                                                                        ).executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), ScaleArgumentType.getScale(context, "scaleY"), Direction.NORTH))
+                                                                                .executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), ScaleArgumentType.getScale(context, "scaleY"), HorizontalDirectionArgumentType.getDirection(context, "direction")))
+                                                                        ).executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), ScaleArgumentType.getScale(context, "scaleY"), Direction.NORTH))
                                                                 )
                                                                 .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                        .executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), 1, HorizontalDirectionArgumentType.getDirection(context, "direction")))
-                                                                ).executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), 1, Direction.NORTH))
+                                                                        .executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), 1, HorizontalDirectionArgumentType.getDirection(context, "direction")))
+                                                                ).executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), 1, Direction.NORTH))
                                                         )
-                                                ).executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), PathArgumentType.getPath(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), 1, 1, 1, Direction.NORTH))
+                                                ).executes((context) -> ImageCommand.generateHeightMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), BlockStateArgumentType.getBlockState(context, "block").getBlockState(), 1, 1, 1, Direction.NORTH))
                                         )
                                 )
                         )
                 )
                 .then(CommandManager.literal("give")
                         .then(CommandManager.argument("target", EntityArgumentType.players())
-                                .then(CommandManager.argument("imagePath", PathArgumentType.path())
+                                .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                         .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                 .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
                                                         .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                .executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction")))
-                                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), PathArgumentType.getPath(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH))
+                                                                .executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction")))
+                                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH))
                                                 )
-                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), PathArgumentType.getPath(context, "imagePath"), 1, 1, Direction.NORTH))
+                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH))
                                 )
                         )
                 )
@@ -146,48 +137,79 @@ public class ImageCommand {
     }
 
     private static int loadImage(CommandContext<ServerCommandSource> context, BlockPos position, String imagePath, boolean useMapColors, boolean useAllMapColors, CommandImageSupplier function) throws CommandSyntaxException {
-        Path runFolder = FabricLoader.getInstance().getGameDir();
-        Path imageFolder = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
-
-        context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
-        File imageFile = new File(imageFolder.toUri());
         try {
-            tryThrowWithCondition(isNotImageFile(imageFile), NOT_AN_IMAGE_EXCEPTION.create(imageFile.getName()));
-
-            BufferedImage image = ImageIO.read(imageFile);
             Map<Identifier, List<Color>> colorData = ColorDataUtil.loadColorData(useMapColors, useAllMapColors);
 
             if (colorData == null) {
                 DataDefaults.loadDefaults();
                 colorData = ColorDataUtil.loadColorData(useMapColors, useAllMapColors);
             }
-            tryThrowWithCondition(colorData == null, COLOR_DATA_MISSING.create());
-            tryThrowWithCondition(image.getWidth() > 1024 || image.getHeight() > 1024, IMAGE_TOO_LARGE.create(imageFile.getName()));
+            tryThrowWithCondition(colorData == null, CommandExceptions.COLOR_DATA_MISSING.create());
 
-            function.load(image, position, colorData);
+            Map<Identifier, List<Color>> finalColorData = colorData;
+            ServerPlayNetworking.registerReceiver(Objects.requireNonNull(context.getSource().getPlayer()).networkHandler,
+                    NetworkingConstants.IMAGE_DATA_ID, (server, player, handler, buf, responseSender) -> {
+                        ByteArrayInputStream stream = new ByteArrayInputStream(buf.readByteArray());
+                        int errorId = buf.readInt();
+                        String message = buf.readString();
+
+                        if (errorId != 0) {
+                            context.getSource().sendError(Text.of(message));
+                        } else {
+                            try {
+                                BufferedImage image = ImageIO.read(stream);
+                                function.load(image, position, finalColorData);
+                            } catch (IOException e) {
+                                context.getSource().sendError(Text.of(e.getMessage()));
+                            }
+                        }
+                        ServerPlayNetworking.unregisterReceiver(Objects.requireNonNull(player).networkHandler,
+                                NetworkingConstants.IMAGE_DATA_ID);
+                    });
+            ServerPlayNetworking.send(Objects.requireNonNull(context.getSource().getPlayer()),
+                    NetworkingConstants.IMAGE_DATA_ID,
+                    PacketByteBufs.create()
+                            .writeString(imagePath)
+            );
         } catch (IOException e) {
-            throw IMAGE_PROCESSING_EXCEPTION.create();
+            throw CommandExceptions.IMAGE_PROCESSING_EXCEPTION.create();
         }
         return 1;
     }
 
     private static int loadImage(CommandContext<ServerCommandSource> context, Collection<ServerPlayerEntity> players, String imagePath, CommandLoadToImageSupplier function) throws CommandSyntaxException {
-        Path runFolder = FabricLoader.getInstance().getGameDir();
-        Path imageFolder = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
-        context.getSource().sendFeedback(() -> Text.of("Image Exists"), true);
-        File imageFile = new File(imageFolder.toUri());
         try {
-            tryThrowWithCondition(isNotImageFile(imageFile), NOT_AN_IMAGE_EXCEPTION.create(imageFile.getName()));
-
-            BufferedImage image = ImageIO.read(imageFile);
             Map<Identifier, MapColor> colorData = ColorDataUtil.loadColorDataAsMapColor();
-            tryThrowWithCondition(colorData == null, COLOR_DATA_MISSING.create());
+            tryThrowWithCondition(colorData == null, CommandExceptions.COLOR_DATA_MISSING.create());
 
             for (ServerPlayerEntity player : players.stream().toList()) {
-                function.load(image, player, colorData);
+                ServerPlayNetworking.registerReceiver(Objects.requireNonNull(player).networkHandler,
+                        NetworkingConstants.IMAGE_DATA_ID, (server, player1, handler, buf, responseSender) -> {
+                            ByteArrayInputStream stream = new ByteArrayInputStream(buf.readByteArray());
+                            int errorId = buf.readInt();
+                            String message = buf.readString();
+
+                            if (errorId != 0) {
+                                context.getSource().sendError(Text.of(message));
+                            } else {
+                                try {
+                                    BufferedImage image = ImageIO.read(stream);
+                                    function.load(image, player1, colorData);
+                                } catch (IOException e) {
+                                    context.getSource().sendError(Text.of(e.getMessage()));
+                                }
+                            }
+                            ServerPlayNetworking.unregisterReceiver(Objects.requireNonNull(player1).networkHandler,
+                                    NetworkingConstants.IMAGE_DATA_ID);
+                        });
+                ServerPlayNetworking.send(Objects.requireNonNull(context.getSource().getPlayer()),
+                        NetworkingConstants.IMAGE_DATA_ID,
+                        PacketByteBufs.create()
+                                .writeString(imagePath)
+                );
             }
         } catch (IOException e) {
-            throw IMAGE_PROCESSING_EXCEPTION.create();
+            throw CommandExceptions.IMAGE_PROCESSING_EXCEPTION.create();
         }
         return 1;
     }
@@ -196,11 +218,6 @@ public class ImageCommand {
         if (condition) {
             throw exception;
         }
-    }
-
-    private static boolean isNotImageFile(File file) throws IOException {
-        String mimetype = Files.probeContentType(file.toPath());
-        return mimetype == null || !mimetype.split("/")[0].equals("image");
     }
 
     private static void loadImageWithBlockTextures(CommandContext<ServerCommandSource> context, BufferedImage image, BlockPos blockPos, Map<Identifier, List<Color>> colorData, double scaleX, double scaleZ, boolean vertical, Direction direction) {
@@ -480,7 +497,6 @@ public class ImageCommand {
 
     private static void placeScaffoldingIfNeeded(ServerWorld world, Block block, BlockPos blockPos) {
         if (block instanceof FallingBlock && world.getBlockState(blockPos.down(1)).getBlock() instanceof AirBlock) {
-            System.out.println("Scaffolding placed");
             world.setBlockState(blockPos.down(1), Blocks.BLACK_CONCRETE.getDefaultState(), 2);
         }
     }

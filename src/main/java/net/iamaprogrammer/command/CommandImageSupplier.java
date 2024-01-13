@@ -10,5 +10,5 @@ import java.util.List;
 import java.util.Map;
 
 public interface CommandImageSupplier {
-    void load(BufferedImage image, BlockPos blockPos, Map<Identifier, List<Color>> colorData) throws CommandSyntaxException;
+    void load(BufferedImage image, BlockPos blockPos, Map<Identifier, List<Color>> colorData);
 }

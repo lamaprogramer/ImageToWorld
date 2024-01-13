@@ -9,5 +9,5 @@ import java.awt.image.BufferedImage;
 import java.util.Map;
 
 public interface CommandLoadToImageSupplier {
-    void load(BufferedImage image, ServerPlayerEntity player, Map<Identifier, MapColor> colorData) throws CommandSyntaxException;
+    void load(BufferedImage image, ServerPlayerEntity player, Map<Identifier, MapColor> colorData);
 }

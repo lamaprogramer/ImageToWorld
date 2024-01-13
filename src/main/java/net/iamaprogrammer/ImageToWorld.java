@@ -6,17 +6,14 @@ import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.iamaprogrammer.command.ImageCommand;
 import net.iamaprogrammer.command.argument.HorizontalDirectionArgumentType;
-import net.iamaprogrammer.command.argument.PathArgumentType;
+import net.iamaprogrammer.command.argument.ImagePathArgumentType;
 import net.iamaprogrammer.command.argument.ScaleArgumentSerializer;
 import net.iamaprogrammer.command.argument.ScaleArgumentType;
 import net.iamaprogrammer.event.ServerStartedHandler;
 import net.minecraft.command.argument.serialize.ConstantArgumentSerializer;
 import net.minecraft.util.Identifier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ImageToWorld implements ModInitializer {
-    public static final Logger LOGGER = LoggerFactory.getLogger("imagetoworld");
 	public static final String MODID = "imagetoworld";
 
 	@Override
@@ -28,7 +25,7 @@ public class ImageToWorld implements ModInitializer {
 		ArgumentTypeRegistry.registerArgumentType(
 				new Identifier(MODID, "direction"), HorizontalDirectionArgumentType.class, ConstantArgumentSerializer.of(HorizontalDirectionArgumentType::direction));
 		ArgumentTypeRegistry.registerArgumentType(
-				new Identifier(MODID, "path"), PathArgumentType.class, ConstantArgumentSerializer.of(PathArgumentType::path));
-		LOGGER.info("Hello Fabric world!");
+				new Identifier(MODID, "path"), ImagePathArgumentType.class, ConstantArgumentSerializer.of(ImagePathArgumentType::image));
+
 	}
 }

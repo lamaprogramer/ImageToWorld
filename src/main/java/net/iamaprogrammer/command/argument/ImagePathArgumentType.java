@@ -3,13 +3,10 @@ package net.iamaprogrammer.command.argument;
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.command.CommandSource;
-import net.minecraft.text.Text;
 
 import java.io.File;
 import java.io.IOException;
@@ -19,17 +16,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 
-public class PathArgumentType implements ArgumentType<String> {
+public class ImagePathArgumentType implements ArgumentType<String> {
     private static final Path RUN_FOLDER = FabricLoader.getInstance().getGameDir();
     private static final Path IMAGES_FOLDER = Path.of(RUN_FOLDER.toString(), "images" + File.separator);
-    private static final DynamicCommandExceptionType FILE_NOT_FOUND;
 
 
-    public static PathArgumentType path() {
-        return new PathArgumentType();
+    public static ImagePathArgumentType image() {
+        return new ImagePathArgumentType();
     }
 
-    public static String getPath(final CommandContext<?> context, final String name) {
+    public static String getImage(final CommandContext<?> context, final String name) {
         return context.getArgument(name, String.class);
     }
 
@@ -41,19 +37,13 @@ public class PathArgumentType implements ArgumentType<String> {
                 || c == '.' || c == '_';
     }
     @Override
-    public String parse(StringReader reader) throws CommandSyntaxException {
+    public String parse(StringReader reader) {
         final int start = reader.getCursor();
         while (reader.canRead() && isAllowedInPath(reader.peek())) {
             reader.skip();
         }
 
-        String text = reader.getString().substring(start, reader.getCursor());
-        Path fullPath = Path.of(IMAGES_FOLDER + File.separator + text);
-        if (Files.exists(fullPath)) {
-            return text;
-        } else {
-            throw FILE_NOT_FOUND.createWithContext(reader, text);
-        }
+        return reader.getString().substring(start, reader.getCursor());
     }
 
     @Override
@@ -70,9 +60,5 @@ public class PathArgumentType implements ArgumentType<String> {
         } catch (IOException e) {
             return Suggestions.empty();
         }
-    }
-
-    static {
-        FILE_NOT_FOUND = new DynamicCommandExceptionType((file) -> Text.translatable("argument.path.filenotfound", file));
     }
 }

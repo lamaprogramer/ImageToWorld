@@ -21,7 +21,6 @@ public class ScaleArgumentSerializer implements ArgumentSerializer<ScaleArgument
         if (bl2) {
             packetByteBuf.writeDouble(properties.max);
         }
-
     }
 
     public ScaleArgumentSerializer.Properties fromPacket(PacketByteBuf packetByteBuf) {

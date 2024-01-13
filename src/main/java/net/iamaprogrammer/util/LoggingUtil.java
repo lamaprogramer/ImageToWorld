@@ -1,7 +1,6 @@
 package net.iamaprogrammer.util;
 
 import com.mojang.brigadier.context.CommandContext;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.iamaprogrammer.command.CommandFunctionRunnable;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.text.Text;
@@ -16,7 +15,7 @@ public class LoggingUtil {
         return -1;
     }
 
-    public static void logTimeToComplete(CommandContext<ServerCommandSource> context, CommandFunctionRunnable runnable) throws CommandSyntaxException {
+    public static void logTimeToComplete(CommandContext<ServerCommandSource> context, CommandFunctionRunnable runnable) {
         long before = System.nanoTime();
         runnable.run();
         long after = System.nanoTime();
