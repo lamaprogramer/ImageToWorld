@@ -41,7 +41,7 @@ import java.util.*;
 
 public class ImageCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess, CommandManager.RegistrationEnvironment registrationEnvironment) {
-        dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(2))
+        dispatcher.register(CommandManager.literal("image").requires((source) -> source.hasPermissionLevel(3))
                 .then(CommandManager.literal("paste")
                         .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                 .then(CommandManager.argument("position", BlockPosArgumentType.blockPos())
@@ -67,9 +67,7 @@ public class ImageCommand {
                                                                 .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction"), false, true))
                                                         )
                                                         .then(CommandManager.argument("useStaircaseHeightMap", BoolArgumentType.bool())
-                                                                .then(CommandManager.argument("useMapColors", BoolArgumentType.bool())
-                                                                        .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), BoolArgumentType.getBool(context, "useMapColors")))
-                                                                ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), true))
+                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), true))
                                                         ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, false, true))
                                                 )
                                         ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH, false, true))
@@ -101,9 +99,7 @@ public class ImageCommand {
                                 .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                         .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                 .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
-                                                        .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                .executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction")))
-                                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH))
+                                                        .executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH))
                                                 )
                                         ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH))
                                 )
@@ -160,7 +156,7 @@ public class ImageCommand {
                                 BufferedImage image = ImageIO.read(stream);
                                 function.load(image, position, finalColorData);
                             } catch (IOException e) {
-                                context.getSource().sendError(Text.of(e.getMessage()));
+                                context.getSource().sendError(Text.of("Failed to read image."));
                             }
                         }
                         ServerPlayNetworking.unregisterReceiver(Objects.requireNonNull(player).networkHandler,
@@ -333,18 +329,20 @@ public class ImageCommand {
                         int[] pixelCoordinates = pixelCoordinatesWithScale(x, y, scaleX, scaleZ);
                         pixelColor = new Color(image.getRGB(pixelCoordinates[0], pixelCoordinates[1]));
 
-                        int coordX = direction.getAxis() == Direction.Axis.X ? y : x;
-                        int coordZ = direction.getAxis() == Direction.Axis.X ? x : y;
+                        int posX = x + (128 - mapToWorldData.getPixelToBlockSizeX())/2;
+                        int posY = y + (128 - mapToWorldData.getPixelToBlockSizeY())/2;
+
 
                         if (pixelColor.equals(previousPixelColor)) {
-                            addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
+                            addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), posX, posY);
                         } else if (usedColors.containsKey(pixelColor)) {
-                            addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
+                            addColorToMap(state, usedColors.get(pixelColor).getLeft(), usedColors.get(pixelColor).getRight(), posX, posY);
                         } else {
-                            previousMapColor = addColorToMap(state, pixelColor, colorData, coordX * mapToWorldData.getDirectionMultiplier().getX(), coordZ * mapToWorldData.getDirectionMultiplier().getZ());
+                            previousMapColor = addColorToMap(state, pixelColor, colorData, posX, posY);
                             previousPixelColor = pixelColor;
                             usedColors.put(previousPixelColor, previousMapColor);
                         }
+
                     }
                 }
                 player.getInventory().insertStack(stack);
@@ -353,7 +351,7 @@ public class ImageCommand {
     }
 
     private static void loadImageAsHeightMap(CommandContext<ServerCommandSource> context, BufferedImage image, BlockPos blockPos, BlockState blockState, double scaleX, double scaleZ, double scaleY, Direction direction) {
-        MapToWorldData mapToWorldData = new MapToWorldData(context, image, blockPos, direction, scaleX, scaleZ, true, false);
+        MapToWorldData mapToWorldData = new MapToWorldData(context, image, blockPos, direction, scaleX, scaleZ, false, false);
 
         Color pixelColor;
         int pixelColorNorth;
