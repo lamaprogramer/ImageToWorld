@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "imagetoworld",
+	"version": "${version}",
+	"name": "ImageToWorld",
+	"description": "A mod for loading images into your world.",
+	"authors": [
+		"Iamaprogrammer"
+	],
+	"contact": {
+		"homepage": "https://github.com/lamaprogramer/ImageToWorld",
+		"sources": "https://github.com/lamaprogramer/ImageToWorld"
+	},
+	"license": "MIT",
+	"icon": "assets/imagetoworld/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"net.iamaprogrammer.ImageToWorld"
+		],
+		"client": [
+			"net.iamaprogrammer.ImageToWorldClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.15.0",
+		"minecraft": [
+			"1.19.2",
+			"1.19.1",
+			"1.19"
+		],
+		"java": ">=17",
+		"fabric": "*"
+	},
+	"suggests": {
+		"another-mod": "*"
+	}
+}
