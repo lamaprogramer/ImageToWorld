@@ -71,7 +71,7 @@ This will paste your image into the world using blocks with map colors that best
 
 This will paste your image directly to a map without placing blocks in the world. Unlike the other commands, if your image is too large, it will simply auto-scale it down to a resolution that fits the map
 
-`/image give <imagePath> [<scaleX>] <scaleZ> [<direction>]`
+`/image give <imagePath> [<scaleX>] <scaleZ>`
 
 #### Arguments:
 
@@ -80,8 +80,6 @@ This will paste your image directly to a map without placing blocks in the world
 `scaleX`: The scale of your image on the X axis, written as a ratio: `1:8`.
 
 `scaleZ`: The scale of your image on the Z axis, written as a ratio: `1:8`.
-
-`direction`: The horizontal direction your image will face.
 
 <br />
 <br />
