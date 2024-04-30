@@ -1,13 +1,17 @@
-package net.iamaprogrammer.network;
+package net.iamaprogrammer.network.packets;
 
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.networking.v1.PacketSender;
 import net.fabricmc.loader.api.FabricLoader;
 import net.iamaprogrammer.command.CommandExceptions;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodec;
+import net.minecraft.network.codec.PacketCodecs;
+import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.util.Identifier;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -17,15 +21,25 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class ImageS2CPacket {
-    public static void receive(MinecraftClient client, ClientPlayNetworkHandler handler, PacketByteBuf buf, PacketSender responseSender) {
-        String imagePath = buf.readString();
+public record ImageDataPacket(String path, byte[] imageBytes, int status, String message) implements CustomPayload {
+    public static final CustomPayload.Id<ImageDataPacket> PACKET_ID = new CustomPayload.Id<>(new Identifier("imagetoworld", "imagedata"));
+    public static final PacketCodec<RegistryByteBuf, ImageDataPacket> PACKET_CODEC = PacketCodec.tuple(
+            PacketCodecs.STRING, ImageDataPacket::path,
+            PacketCodecs.BYTE_ARRAY, ImageDataPacket::imageBytes,
+            PacketCodecs.VAR_INT, ImageDataPacket::status,
+            PacketCodecs.STRING, ImageDataPacket::message,
+            ImageDataPacket::new
+    );
+
+    public static void receiveClient(ImageDataPacket payload, ClientPlayNetworking.Context context) {
+        String imagePath = payload.path();
 
         Path runFolder = FabricLoader.getInstance().getGameDir();
         Path imageFolder = Path.of(runFolder.toString(), "images" + File.separator + imagePath);
 
         File imageFile = new File(imageFolder.toUri());
 
+        PacketSender responseSender = context.responseSender();
         try {
             tryThrowWithCondition(isNotImageFile(imageFile), CommandExceptions.NOT_AN_IMAGE_EXCEPTION.create(imageFile.getName()));
 
@@ -36,15 +50,12 @@ public class ImageS2CPacket {
             ImageIO.write(image, getFileExtension(imageFile), baos);
             byte[] imageBytes = baos.toByteArray();
 
-            responseSender.sendPacket(NetworkingConstants.IMAGE_DATA_ID,
-                    createPacketData(imageBytes, 0, ""));
+            responseSender.sendPacket(new ImageDataPacket(imagePath, imageBytes, 0, ""));
         } catch (IOException | CommandSyntaxException e) {
             if (e instanceof CommandSyntaxException ex) {
-                responseSender.sendPacket(NetworkingConstants.IMAGE_DATA_ID,
-                        createPacketData(new byte[]{0}, 1, ex.getMessage()));
+                responseSender.sendPacket(new ImageDataPacket(imagePath, new byte[]{0}, 1, ex.getMessage()));
             } else {
-                responseSender.sendPacket(NetworkingConstants.IMAGE_DATA_ID,
-                        createPacketData(new byte[]{0}, 1, "File Not Found"));
+                responseSender.sendPacket(new ImageDataPacket(imagePath, new byte[]{0}, 1, "File Not Found"));
             }
         }
     }
@@ -52,7 +63,7 @@ public class ImageS2CPacket {
     private static PacketByteBuf createPacketData(byte[] image, int status, String message) {
         return PacketByteBufs.create()
                 .writeByteArray(image)
-                .writeInt(status)
+                .writeVarInt(status)
                 .writeString(message);
     }
 
@@ -74,5 +85,10 @@ public class ImageS2CPacket {
     private static boolean isNotImageFile(File file) throws IOException {
         String mimetype = Files.probeContentType(file.toPath());
         return mimetype == null || !mimetype.split("/")[0].equals("image");
+    }
+
+    @Override
+    public Id<? extends CustomPayload> getId() {
+        return PACKET_ID;
     }
 }

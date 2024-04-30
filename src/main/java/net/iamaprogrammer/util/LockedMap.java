@@ -1,5 +1,8 @@
 package net.iamaprogrammer.util;
 
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.MapIdComponent;
+import net.minecraft.component.type.MapPostProcessingComponent;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
@@ -10,23 +13,15 @@ import net.minecraft.world.World;
 public class LockedMap {
     public static ItemStack createLockedMap(World world, byte scale) {
         ItemStack itemStack = new ItemStack(Items.FILLED_MAP);
-        createLockedMapState(itemStack, world, scale, world.getRegistryKey());
+        MapIdComponent mapIdComponent = allocateMapId(world, scale, world.getRegistryKey());
+        itemStack.set(DataComponentTypes.MAP_ID, mapIdComponent);
         return itemStack;
     }
 
-    private static void setMapId(ItemStack stack, int id) {
-        stack.getOrCreateNbt().putInt("map", id);
-    }
-
-    private static void createLockedMapState(ItemStack stack, World world, int scale, RegistryKey<World> dimension) {
-        int i = allocateMapId(world, scale, dimension);
-        setMapId(stack, i);
-    }
-
-    private static int allocateMapId(World world, int scale, RegistryKey<World> dimension) {
+    private static MapIdComponent allocateMapId(World world, int scale, RegistryKey<World> dimension) {
         MapState mapState = MapState.of((byte)scale, true, dimension);
-        int i = world.getNextMapId();
-        world.putMapState(FilledMapItem.getMapName(i), mapState);
-        return i;
+        MapIdComponent mapIdComponent = world.getNextMapId();
+        world.putMapState(mapIdComponent, mapState);
+        return mapIdComponent;
     }
 }

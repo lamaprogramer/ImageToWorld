@@ -5,8 +5,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.loader.api.FabricLoader;
 import net.iamaprogrammer.event.ClientStartedHandler;
-import net.iamaprogrammer.network.ImageS2CPacket;
-import net.iamaprogrammer.network.NetworkingConstants;
+import net.iamaprogrammer.network.packets.ImageDataPacket;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,6 +20,7 @@ public class ImageToWorldClient implements ClientModInitializer {
         } catch (IOException ignored) {}
 
         ClientLifecycleEvents.CLIENT_STARTED.register(new ClientStartedHandler());
-        ClientPlayNetworking.registerGlobalReceiver(NetworkingConstants.IMAGE_DATA_ID, ImageS2CPacket::receive);
+
+        ClientPlayNetworking.registerGlobalReceiver(ImageDataPacket.PACKET_ID, ImageDataPacket::receiveClient);
     }
 }

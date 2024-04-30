@@ -10,6 +10,7 @@ import net.iamaprogrammer.command.argument.HorizontalDirectionArgumentType;
 import net.iamaprogrammer.command.argument.ImagePathArgumentType;
 import net.iamaprogrammer.command.argument.ScaleArgumentType;
 import net.iamaprogrammer.network.NetworkingConstants;
+import net.iamaprogrammer.network.packets.ImageDataPacket;
 import net.iamaprogrammer.util.*;
 import net.minecraft.block.*;
 import net.minecraft.command.CommandRegistryAccess;
@@ -19,6 +20,7 @@ import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.item.FilledMapItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.map.MapState;
+import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
@@ -64,13 +66,13 @@ public class ImageCommand {
                                         .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                 .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
                                                         .then(CommandManager.argument("direction", HorizontalDirectionArgumentType.direction())
-                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction"), false, true))
+                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), HorizontalDirectionArgumentType.getDirection(context, "direction"), false))
                                                         )
                                                         .then(CommandManager.argument("useStaircaseHeightMap", BoolArgumentType.bool())
-                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap"), true))
-                                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, false, true))
+                                                                .executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, BoolArgumentType.getBool(context, "useStaircaseHeightMap")))
+                                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH, false))
                                                 )
-                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH, false, true))
+                                        ).executes((context) -> ImageCommand.generateForMap(context, BlockPosArgumentType.getBlockPos(context, "position"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH, false))
                                 )
                         )
                 )
@@ -99,9 +101,9 @@ public class ImageCommand {
                                 .then(CommandManager.argument("imagePath", ImagePathArgumentType.image())
                                         .then(CommandManager.argument("scaleX", ScaleArgumentType.scale())
                                                 .then(CommandManager.argument("scaleZ", ScaleArgumentType.scale())
-                                                        .executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ"), Direction.NORTH))
+                                                        .executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), ScaleArgumentType.getScale(context, "scaleX"), ScaleArgumentType.getScale(context, "scaleZ")))
                                                 )
-                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1, Direction.NORTH))
+                                        ).executes((context) -> ImageCommand.giveMap(context, EntityArgumentType.getPlayers(context, "target"), ImagePathArgumentType.getImage(context, "imagePath"), 1, 1))
                                 )
                         )
                 )
@@ -114,8 +116,8 @@ public class ImageCommand {
                         loadImageWithBlockTextures(context, image, blockPos, colorData, scaleX, scaleZ, vertical, direction)));
     }
 
-    private static int generateForMap(CommandContext<ServerCommandSource> context, BlockPos position, String imagePath, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap, boolean useMapColors) throws CommandSyntaxException {
-        return loadImage(context, position, imagePath, useMapColors, useStaircaseHeightMap, (image, blockPos, colorData) ->
+    private static int generateForMap(CommandContext<ServerCommandSource> context, BlockPos position, String imagePath, double scaleX, double scaleZ, Direction direction, boolean useStaircaseHeightMap) throws CommandSyntaxException {
+        return loadImage(context, position, imagePath, true, useStaircaseHeightMap, (image, blockPos, colorData) ->
                 LoggingUtil.logTimeToComplete(context, () ->
                         loadImageAsMap(context, image, blockPos, colorData, scaleX, scaleZ, direction, useStaircaseHeightMap)));
     }
@@ -126,10 +128,10 @@ public class ImageCommand {
                         loadImageAsHeightMap(context, image, blockPos, blockState, scaleX, scaleZ, scaleY, direction)));
     }
 
-    private static int giveMap(CommandContext<ServerCommandSource> context, Collection<ServerPlayerEntity> players, String imagePath, double scaleX, double scaleZ, Direction direction) throws CommandSyntaxException {
+    private static int giveMap(CommandContext<ServerCommandSource> context, Collection<ServerPlayerEntity> players, String imagePath, double scaleX, double scaleZ) throws CommandSyntaxException {
         return loadImage(context, players, imagePath, (image, player, colorData) ->
                 LoggingUtil.logTimeToComplete(context, () ->
-                        loadImageToMap(context, image, player, colorData, scaleX, scaleZ, direction)));
+                        loadImageToMap(context, image, player, colorData, scaleX, scaleZ, Direction.NORTH)));
     }
 
     private static int loadImage(CommandContext<ServerCommandSource> context, BlockPos position, String imagePath, boolean useMapColors, boolean useAllMapColors, CommandImageSupplier function) throws CommandSyntaxException {
@@ -144,10 +146,10 @@ public class ImageCommand {
 
             Map<Identifier, List<Color>> finalColorData = colorData;
             ServerPlayNetworking.registerReceiver(Objects.requireNonNull(context.getSource().getPlayer()).networkHandler,
-                    NetworkingConstants.IMAGE_DATA_ID, (server, player, handler, buf, responseSender) -> {
-                        ByteArrayInputStream stream = new ByteArrayInputStream(buf.readByteArray());
-                        int errorId = buf.readInt();
-                        String message = buf.readString();
+                    ImageDataPacket.PACKET_ID, (payload, networkContext) -> {
+                        ByteArrayInputStream stream = new ByteArrayInputStream(payload.imageBytes());
+                        int errorId = payload.status();
+                        String message = payload.message();
 
                         if (errorId != 0) {
                             context.getSource().sendError(Text.of(message));
@@ -159,13 +161,12 @@ public class ImageCommand {
                                 context.getSource().sendError(Text.of("Failed to read image."));
                             }
                         }
-                        ServerPlayNetworking.unregisterReceiver(Objects.requireNonNull(player).networkHandler,
+                        ServerPlayNetworking.unregisterReceiver(networkContext.player().networkHandler,
                                 NetworkingConstants.IMAGE_DATA_ID);
                     });
+            //ServerPlayNetworking.send(Objects.requireNonNull(context.getSource().getPlayer()), PacketCodecs.STRING.);
             ServerPlayNetworking.send(Objects.requireNonNull(context.getSource().getPlayer()),
-                    NetworkingConstants.IMAGE_DATA_ID,
-                    PacketByteBufs.create()
-                            .writeString(imagePath)
+                    new ImageDataPacket(imagePath, new byte[0], 0, "")
             );
         } catch (IOException e) {
             throw CommandExceptions.IMAGE_PROCESSING_EXCEPTION.create();
@@ -180,28 +181,26 @@ public class ImageCommand {
 
             for (ServerPlayerEntity player : players.stream().toList()) {
                 ServerPlayNetworking.registerReceiver(Objects.requireNonNull(player).networkHandler,
-                        NetworkingConstants.IMAGE_DATA_ID, (server, player1, handler, buf, responseSender) -> {
-                            ByteArrayInputStream stream = new ByteArrayInputStream(buf.readByteArray());
-                            int errorId = buf.readInt();
-                            String message = buf.readString();
+                        ImageDataPacket.PACKET_ID, (payload, networkContext) -> {
+                            ByteArrayInputStream stream = new ByteArrayInputStream(payload.imageBytes());
+                            int errorId = payload.status();
+                            String message = payload.message();
 
                             if (errorId != 0) {
                                 context.getSource().sendError(Text.of(message));
                             } else {
                                 try {
                                     BufferedImage image = ImageIO.read(stream);
-                                    function.load(image, player1, colorData);
+                                    function.load(image, networkContext.player(), colorData);
                                 } catch (IOException e) {
                                     context.getSource().sendError(Text.of(e.getMessage()));
                                 }
                             }
-                            ServerPlayNetworking.unregisterReceiver(Objects.requireNonNull(player1).networkHandler,
-                                    NetworkingConstants.IMAGE_DATA_ID);
+                            ServerPlayNetworking.unregisterReceiver(networkContext.player().networkHandler,
+                                    ImageDataPacket.PACKET_ID.id());
                         });
                 ServerPlayNetworking.send(Objects.requireNonNull(context.getSource().getPlayer()),
-                        NetworkingConstants.IMAGE_DATA_ID,
-                        PacketByteBufs.create()
-                                .writeString(imagePath)
+                        new ImageDataPacket(imagePath, new byte[0], 0, "")
                 );
             }
         } catch (IOException e) {
