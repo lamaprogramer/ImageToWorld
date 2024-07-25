@@ -27,11 +27,11 @@ public class ImageToWorld implements ModInitializer {
 		PayloadTypeRegistry.playS2C().register(ImageDataPacket.PACKET_ID, ImageDataPacket.PACKET_CODEC);
 
 		ArgumentTypeRegistry.registerArgumentType(
-				new Identifier(MODID, "scale"), ScaleArgumentType.class, new ScaleArgumentSerializer());
+				Identifier.of(MODID, "scale"), ScaleArgumentType.class, new ScaleArgumentSerializer());
 		ArgumentTypeRegistry.registerArgumentType(
-				new Identifier(MODID, "direction"), HorizontalDirectionArgumentType.class, ConstantArgumentSerializer.of(HorizontalDirectionArgumentType::direction));
+				Identifier.of(MODID, "direction"), HorizontalDirectionArgumentType.class, ConstantArgumentSerializer.of(HorizontalDirectionArgumentType::direction));
 		ArgumentTypeRegistry.registerArgumentType(
-				new Identifier(MODID, "path"), ImagePathArgumentType.class, ConstantArgumentSerializer.of(ImagePathArgumentType::image));
+				Identifier.of(MODID, "path"), ImagePathArgumentType.class, ConstantArgumentSerializer.of(ImagePathArgumentType::image));
 
 
 	}

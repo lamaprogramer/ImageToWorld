@@ -22,7 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public record ImageDataPacket(String path, byte[] imageBytes, int status, String message) implements CustomPayload {
-    public static final CustomPayload.Id<ImageDataPacket> PACKET_ID = new CustomPayload.Id<>(new Identifier("imagetoworld", "imagedata"));
+    public static final CustomPayload.Id<ImageDataPacket> PACKET_ID = new CustomPayload.Id<>(Identifier.of("imagetoworld", "imagedata"));
     public static final PacketCodec<RegistryByteBuf, ImageDataPacket> PACKET_CODEC = PacketCodec.tuple(
             PacketCodecs.STRING, ImageDataPacket::path,
             PacketCodecs.BYTE_ARRAY, ImageDataPacket::imageBytes,

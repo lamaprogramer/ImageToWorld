@@ -17,9 +17,7 @@ import java.nio.file.Path;
 public class ServerStartedHandler implements ServerLifecycleEvents.ServerStarted {
     @Override
     public void onServerStarted(MinecraftServer server) {
-        try {
-            MinecraftClient.getInstance();
-        } catch (RuntimeException e) {
+        if (server.isDedicated()) {
             DataDefaults.loadDefaults();
         }
     }

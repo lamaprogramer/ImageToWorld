@@ -27,7 +27,7 @@ public class ColorDataUtil {
                 for (String line : lines) {
                     String[] splitLine = line.split("#");
 
-                    Identifier blockId = new Identifier(splitLine[0]);
+                    Identifier blockId = Identifier.of(splitLine[0]);
                     int colorId = Integer.parseInt(splitLine[1]);
 
                     List<Color> colors = new ArrayList<>();
@@ -50,7 +50,7 @@ public class ColorDataUtil {
 
                 for (String line : lines) {
                     String[] splitLine = line.split("#");
-                    Identifier blockId = new Identifier(splitLine[0]);
+                    Identifier blockId = Identifier.of(splitLine[0]);
 
                     String[] rgb = splitLine[1].split(" ");
                     data.put(blockId, List.of(getColor(rgb)));
@@ -70,7 +70,7 @@ public class ColorDataUtil {
 
             for (String line : lines) {
                 String[] splitLine = line.split("#");
-                Identifier blockId = new Identifier(splitLine[0]);
+                Identifier blockId = Identifier.of(splitLine[0]);
 
                 int colorId = Integer.parseInt(splitLine[1]);
                 data.put(blockId, MapColor.get(colorId));

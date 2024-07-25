@@ -20,7 +20,7 @@ public class LockedMap {
 
     private static MapIdComponent allocateMapId(World world, int scale, RegistryKey<World> dimension) {
         MapState mapState = MapState.of((byte)scale, true, dimension);
-        MapIdComponent mapIdComponent = world.getNextMapId();
+        MapIdComponent mapIdComponent = world.increaseAndGetMapId();
         world.putMapState(mapIdComponent, mapState);
         return mapIdComponent;
     }

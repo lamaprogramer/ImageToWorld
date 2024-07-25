@@ -104,7 +104,7 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
             for (int j = i; j < strings.length; j++) {
                 temp += !temp.isEmpty() ? "_" + strings[j] : strings[j];
 
-                if (temp.equals(blockId.getPath()) || allBlockIds.contains(new Identifier(modelId.getNamespace(), temp))) {
+                if (temp.equals(blockId.getPath()) || allBlockIds.contains(Identifier.of(modelId.getNamespace(), temp))) {
                     if (temp.length() > largestCombination.length()) {
                         largestCombination = temp;
                     }
@@ -136,7 +136,7 @@ public class ClientStartedHandler implements ClientLifecycleEvents.ClientStarted
                             .replace("item/", "textures/item/") + ".png";
 
                     if (!id.contains("#")) {
-                        textureIds.put(blockId, new Identifier(id));
+                        textureIds.put(blockId, Identifier.of(id));
                     }
                 }
                 return textureIds;
